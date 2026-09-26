@@ -101,6 +101,8 @@ const Key = (p) => <Icon {...p}><circle cx="8" cy="8" r="4" /><path d="M11 11l9 
 const Building = (p) => <Icon {...p}><rect x="5" y="3" width="14" height="18" rx="1" /><path d="M9 7h1.5M13.5 7H15M9 11h1.5M13.5 11H15M9 15h1.5M13.5 15H15" /><path d="M10.5 21v-3h3v3" /></Icon>;
 const LogOut = (p) => <Icon {...p}><path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 1.5 0 0 0 5.5 20H9" /><path d="M14 16l4-4-4-4" /><path d="M18 12H9" /></Icon>;
 const Sparkles = (p) => <Icon {...p}><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z" /><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z" /></Icon>;
+const Trash = (p) => <Icon {...p}><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" /><path d="M10 11v6M14 11v6" /></Icon>;
+const Plus = (p) => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>;
 const Image = ImgIcon;
 
 const LogoCGE = ({ className = "w-10 h-10" }) => (
@@ -119,6 +121,7 @@ const LogoCGE = ({ className = "w-10 h-10" }) => (
 );
 
 const SITE_SALT = "cge-arstm-2026";
+const MAX_LOGIN_ATTEMPTS = 5;
 const hashSecret = async (id, secret) => {
   const data = new TextEncoder().encode(`${SITE_SALT}|${id}|${secret}`);
   const buf = await crypto.subtle.digest("SHA-256", data);
@@ -158,6 +161,66 @@ const initialGallery = [
   { id: 3, title: "Journée Sportive Inter-Filières", category: "Vie Étudiante", image: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&q=80&w=600" }
 ];
 
+// Annuaire des membres inscrits — comptes créés à partir du matricule ; le code
+// PIN est défini par chaque membre lors de sa toute première connexion (pinHash: null)
+const initialRegistry = [
+  { id: 1, matricule: "ARSTM-CGE-0001", name: "KOUAME HANIELLE RUTH", role: "Membre", pinHash: null },
+  { id: 2, matricule: "ARSTM-CGE-0002", name: "APOMOLIA APA", role: "Membre", pinHash: null },
+  { id: 3, matricule: "ARSTM-CGE-0003", name: "GUIRA CHEICK", role: "Membre", pinHash: null },
+  { id: 4, matricule: "ARSTM-CGE-0004", name: "ASSANDE BOTIKPA", role: "Membre", pinHash: null },
+  { id: 5, matricule: "ARSTM-CGE-0005", name: "AVENIE DELACHA", role: "Membre", pinHash: null },
+  { id: 6, matricule: "ARSTM-CGE-0006", name: "IRIE BI", role: "Membre", pinHash: null },
+  { id: 7, matricule: "ARSTM-CGE-0007", name: "KOUAKOU MARC-ARTHUR", role: "Membre", pinHash: null },
+  { id: 8, matricule: "ARSTM-CGE-0008", name: "DJATO ANGE", role: "Membre", pinHash: null },
+  { id: 9, matricule: "ARSTM-CGE-0009", name: "TOTO DEBORAH", role: "Membre", pinHash: null },
+  { id: 10, matricule: "ARSTM-CGE-0010", name: "KOUAKOU GBOKO ELISEE", role: "Membre", pinHash: null },
+  { id: 11, matricule: "ARSTM-CGE-0011", name: "CISSE CHEICK", role: "Membre", pinHash: null },
+  { id: 12, matricule: "ARSTM-CGE-0012", name: "HOBA EKRA", role: "Membre", pinHash: null },
+  { id: 13, matricule: "ARSTM-CGE-0013", name: "KALOGA MOUHAMMAD ISLAM", role: "Membre", pinHash: null },
+  { id: 14, matricule: "ARSTM-CGE-0014", name: "KOUAME KOUAKOU ACHILLE", role: "Membre", pinHash: null },
+  { id: 15, matricule: "ARSTM-CGE-0015", name: "COULIBALY CHEICK", role: "Membre", pinHash: null },
+  { id: 16, matricule: "ARSTM-CGE-0016", name: "DIOMANDE SOLO", role: "Membre", pinHash: null },
+  { id: 17, matricule: "ARSTM-CGE-0017", name: "SORO DOFOUGO", role: "Membre", pinHash: null },
+  { id: 18, matricule: "ARSTM-CGE-0018", name: "SYLLA YACOUBA", role: "Membre", pinHash: null },
+  { id: 19, matricule: "ARSTM-CGE-0019", name: "AMOUSSAN KOFFI", role: "Membre", pinHash: null },
+  { id: 20, matricule: "ARSTM-CGE-0020", name: "KADIO ADJOUA", role: "Membre", pinHash: null },
+  { id: 21, matricule: "ARSTM-CGE-0021", name: "KOUASSI SETH BENI", role: "Membre", pinHash: null },
+  { id: 22, matricule: "ARSTM-CGE-0022", name: "SALAH KOFFI EMMANUEL", role: "Membre", pinHash: null },
+  { id: 23, matricule: "ARSTM-CGE-0023", name: "ZADI ALLOUA MARIA", role: "Membre", pinHash: null },
+  { id: 24, matricule: "ARSTM-CGE-0024", name: "MAMBO INCHOT BENJAMIN", role: "Membre", pinHash: null },
+  { id: 25, matricule: "ARSTM-CGE-0025", name: "DOSSO ISAAC MICHAEL", role: "Membre", pinHash: null },
+  { id: 26, matricule: "ARSTM-CGE-0026", name: "ZOKOU SOMIAN ERIC", role: "Membre", pinHash: null },
+  { id: 27, matricule: "ARSTM-CGE-0027", name: "SEDJI NANGUI FRANK", role: "Membre", pinHash: null },
+  { id: 28, matricule: "ARSTM-CGE-0028", name: "ISMAILA ABIOLA", role: "Membre", pinHash: null },
+  { id: 29, matricule: "ARSTM-CGE-0029", name: "KARAMOKO BINTOU", role: "Membre", pinHash: null },
+  { id: 30, matricule: "ARSTM-CGE-0030", name: "YAO ELEAZE N'DA JOSUE", role: "Membre", pinHash: null },
+  { id: 31, matricule: "ARSTM-CGE-0031", name: "TAPE ARISTID", role: "Membre", pinHash: null },
+  { id: 32, matricule: "ARSTM-CGE-0032", name: "ABINAN DIVINE", role: "Membre", pinHash: null },
+  { id: 33, matricule: "ARSTM-CGE-0033", name: "KOUA OROU DANIEL", role: "Membre", pinHash: null },
+  { id: 34, matricule: "ARSTM-CGE-0034", name: "ATTA KOUAO", role: "Membre", pinHash: null },
+  { id: 35, matricule: "ARSTM-CGE-0035", name: "SERI BAHIE ELVIS", role: "Membre", pinHash: null },
+  { id: 36, matricule: "ARSTM-CGE-0036", name: "TAIBOU CHRIST", role: "Membre", pinHash: null },
+  { id: 37, matricule: "ARSTM-CGE-0037", name: "ALLO N'CHO", role: "Membre", pinHash: null },
+  { id: 38, matricule: "ARSTM-CGE-0038", name: "KOFFI YABA URIELLE", role: "Membre", pinHash: null },
+  { id: 39, matricule: "ARSTM-CGE-0039", name: "KONE LAYLA", role: "Membre", pinHash: null },
+  { id: 40, matricule: "ARSTM-CGE-0040", name: "GOH BI TAH", role: "Membre", pinHash: null },
+  { id: 41, matricule: "ARSTM-CGE-0041", name: "MASSOUNGA JESSICA", role: "Membre", pinHash: null },
+  { id: 42, matricule: "ARSTM-CGE-0042", name: "NANGUI AKRE ANGE", role: "Membre", pinHash: null },
+  { id: 43, matricule: "ARSTM-CGE-0043", name: "N'DRI NEHEMIE", role: "Membre", pinHash: null },
+  { id: 44, matricule: "ARSTM-CGE-0044", name: "N'DIAYE OUATTARA", role: "Membre", pinHash: null },
+  { id: 45, matricule: "ARSTM-CGE-0045", name: "GUEHI HYACINTHE", role: "Membre", pinHash: null },
+  { id: 46, matricule: "ARSTM-CGE-0046", name: "OUATTARA YOUSSOUPH", role: "Membre", pinHash: null },
+  { id: 47, matricule: "ARSTM-CGE-0047", name: "OHOUEU JEAN", role: "Membre", pinHash: null },
+  { id: 48, matricule: "ARSTM-CGE-0048", name: "N'GOLO NATHAN", role: "Membre", pinHash: null },
+  { id: 49, matricule: "ARSTM-CGE-0049", name: "DOSSO MUBARAK", role: "Membre", pinHash: null },
+  { id: 50, matricule: "ARSTM-CGE-0050", name: "SORO KARNA", role: "Membre", pinHash: null },
+  { id: 51, matricule: "ARSTM-CGE-0051", name: "KONE BAKARY", role: "Membre", pinHash: null },
+  { id: 52, matricule: "ARSTM-CGE-0052", name: "KONAN PHILEMON", role: "Membre", pinHash: null },
+  { id: 53, matricule: "ARSTM-CGE-0053", name: "ADEGOKE SARAH", role: "Membre", pinHash: null },
+  { id: 54, matricule: "ARSTM-CGE-0054", name: "MAHUDO LUCIE", role: "Membre", pinHash: null },
+  { id: 55, matricule: "ARSTM-CGE-0055", name: "OUATTARA INES", role: "Membre", pinHash: null }
+];
+
 function App() {
   const [activeTab, setActiveTab] = useState('accueil');
   const [hoveredTab, setHoveredTab] = useState(null);
@@ -170,8 +233,16 @@ function App() {
   const [memberMatriculeInput, setMemberMatriculeInput] = useState('');
   const [memberPinInput, setMemberPinInput] = useState('');
   const [failedAttempts, setFailedAttempts] = useState(0);
-  const [lockUntil, setLockUntil] = useState(0);
+  const [isLocked, setIsLocked] = useState(false);
   const [isCheckingLogin, setIsCheckingLogin] = useState(false);
+
+  // Gestion admin des membres du bureau
+  const [showAddMemberModal, setShowAddMemberModal] = useState(false);
+  const [memberToDelete, setMemberToDelete] = useState(null);
+  const [newMemberForm, setNewMemberForm] = useState({ name: '', role: '', matricule: '', bio: '', pin: '', image: '' });
+  const [isSavingMember, setIsSavingMember] = useState(false);
+  const [editingRegistryId, setEditingRegistryId] = useState(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
 
   // Pillar animation positioning ref
   const navRef = useRef(null);
@@ -183,6 +254,7 @@ function App() {
   const [jobs, setJobs] = useState(initialJobs);
   const [alumni, setAlumni] = useState(initialAlumni);
   const [gallery, setGallery] = useState(initialGallery);
+  const [registry, setRegistry] = useState(initialRegistry);
 
   // Génération dynamique des éléments de navigation selon le statut de connexion
   const isUserAuthenticated = currentUser !== null || isAdminLoggedIn;
@@ -229,7 +301,7 @@ function App() {
 
   // Connexion (membre ou administrateur)
   const handleMemberLogin = async () => {
-    if (lockUntil > Date.now()) return;
+    if (isLocked) return;
     const id = memberMatriculeInput.trim();
     const secret = memberPinInput.trim();
     if (!id || !secret) {
@@ -246,6 +318,7 @@ function App() {
           setIsAdminLoggedIn(true);
           setCurrentUser({ name: admin.name });
           setFailedAttempts(0);
+          setIsLocked(false);
           closeMemberModal();
           showToastMsg(`Bienvenue, ${admin.name}`);
           return;
@@ -258,21 +331,49 @@ function App() {
             setIsAdminLoggedIn(false);
             setCurrentUser(member);
             setFailedAttempts(0);
+            setIsLocked(false);
             closeMemberModal();
             showToastMsg(`Bienvenue, ${member.name.split(' ')[0]}`);
             return;
+          }
+        } else {
+          const registrant = registry.find(r => r.matricule.toLowerCase() === id.toLowerCase());
+          if (registrant) {
+            if (!registrant.pinHash) {
+              // Première connexion : le code saisi devient le code PIN personnel du membre
+              const h = await hashSecret(registrant.matricule, secret);
+              const activated = { ...registrant, pinHash: h };
+              setRegistry(prev => prev.map(r => r.id === registrant.id ? activated : r));
+              setIsAdminLoggedIn(false);
+              setCurrentUser(activated);
+              setFailedAttempts(0);
+              setIsLocked(false);
+              closeMemberModal();
+              showToastMsg(`Compte activé. Bienvenue, ${activated.name.split(' ')[0]}`);
+              return;
+            }
+            const h = await hashSecret(registrant.matricule, secret);
+            if (h === registrant.pinHash) {
+              setIsAdminLoggedIn(false);
+              setCurrentUser(registrant);
+              setFailedAttempts(0);
+              setIsLocked(false);
+              closeMemberModal();
+              showToastMsg(`Bienvenue, ${registrant.name.split(' ')[0]}`);
+              return;
+            }
           }
         }
       }
 
       const attempts = failedAttempts + 1;
       setFailedAttempts(attempts);
-      if (attempts >= 5) {
-        setLockUntil(Date.now() + 30000);
-        setFailedAttempts(0);
-        showToastMsg("Trop de tentatives. Réessayez dans 30 secondes.");
+      const remaining = MAX_LOGIN_ATTEMPTS - attempts;
+      if (remaining <= 0) {
+        setIsLocked(true);
+        showToastMsg("Compte verrouillé après 5 tentatives. Veuillez vous rapprocher du bureau informatique pour réinitialiser votre compte.");
       } else {
-        showToastMsg("Identifiant ou code incorrect.");
+        showToastMsg(`Identifiant ou code incorrect. Il vous reste ${remaining} tentative${remaining > 1 ? 's' : ''}.`);
       }
     } finally {
       setIsCheckingLogin(false);
@@ -284,6 +385,69 @@ function App() {
     setIsAdminLoggedIn(false);
     setActiveTab('accueil');
     showToastMsg("Déconnexion réussie.");
+  };
+
+  const closeAddMemberModal = () => {
+    setShowAddMemberModal(false);
+    setNewMemberForm({ name: '', role: '', matricule: '', bio: '', pin: '', image: '' });
+  };
+
+  const handleMemberPhotoUpload = (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      setNewMemberForm(f => ({ ...f, image: reader.result }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleAddMember = async () => {
+    const { name, role, matricule, bio, pin, image } = newMemberForm;
+    if (!name.trim() || !role.trim() || !matricule.trim() || !pin.trim()) {
+      showToastMsg("Nom, rôle, matricule et code PIN sont obligatoires.");
+      return;
+    }
+    if (members.some(m => m.matricule.toLowerCase() === matricule.trim().toLowerCase())) {
+      showToastMsg("Ce matricule est déjà utilisé par un autre membre.");
+      return;
+    }
+    setIsSavingMember(true);
+    try {
+      const pinHash = await hashSecret(matricule.trim(), pin.trim());
+      const newId = members.length ? Math.max(...members.map(m => m.id)) + 1 : 1;
+      const newMember = {
+        id: newId,
+        matricule: matricule.trim(),
+        pinHash,
+        name: name.trim(),
+        role: role.trim(),
+        bio: bio.trim() || "Membre du bureau exécutif de la CGE ARSTM.",
+        image: image || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=400"
+      };
+      setMembers(prev => [...prev, newMember]);
+      closeAddMemberModal();
+      showToastMsg(`${newMember.name} a été ajouté(e) au bureau.`);
+    } finally {
+      setIsSavingMember(false);
+    }
+  };
+
+  const handleDeleteMember = (member) => {
+    setMembers(prev => prev.filter(m => m.id !== member.id));
+    setMemberToDelete(null);
+    showToastMsg(`${member.name} a été retiré(e) du bureau.`);
+  };
+
+  const handleSaveRegistryName = (id) => {
+    const trimmed = editingNameValue.trim();
+    if (!trimmed) {
+      showToastMsg("Le nom ne peut pas être vide.");
+      return;
+    }
+    setRegistry(prev => prev.map(r => r.id === id ? { ...r, name: trimmed } : r));
+    setEditingRegistryId(null);
+    showToastMsg("Nom corrigé avec succès.");
   };
 
   return (
@@ -331,7 +495,8 @@ function App() {
                 value={memberMatriculeInput}
                 onChange={(e) => setMemberMatriculeInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleMemberLogin()}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                disabled={isLocked}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
               />
               <input
                 type="password"
@@ -339,12 +504,13 @@ function App() {
                 value={memberPinInput}
                 onChange={(e) => setMemberPinInput(e.target.value)}
                 onKeyDown={(e) => e.key === 'Enter' && handleMemberLogin()}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                disabled={isLocked}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
               />
             </div>
 
-            {lockUntil > Date.now() ? (
-              <p className="text-xs font-semibold text-rose-600 text-center">Trop de tentatives, réessayez dans un instant.</p>
+            {isLocked ? (
+              <p className="text-xs font-semibold text-rose-600 text-center leading-relaxed">Compte verrouillé après 5 tentatives infructueuses. Veuillez vous rapprocher du bureau informatique pour réinitialiser votre compte.</p>
             ) : (
               <button
                 onClick={handleMemberLogin}
@@ -354,6 +520,129 @@ function App() {
                 {isCheckingLogin ? "Vérification..." : "Se connecter"}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* MODALE AJOUT D'UN MEMBRE (ADMIN) */}
+      {showAddMemberModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={closeAddMemberModal}
+        >
+          <div
+            className="glass-card w-full max-w-md rounded-3xl p-8 space-y-5 relative my-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={closeAddMemberModal}
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"
+              aria-label="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-1">
+              <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
+                <Plus className="w-5 h-5 text-orange-600" />
+              </div>
+              <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">Ajouter un membre du bureau</h3>
+              <p className="text-xs text-stone-500">Renseignez son identité, sa photo et son rôle au sein du bureau.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <div className="w-16 h-16 rounded-2xl bg-white/70 border border-stone-200 overflow-hidden flex items-center justify-center flex-shrink-0">
+                  {newMemberForm.image ? (
+                    <img src={newMemberForm.image} alt="Aperçu" className="w-full h-full object-cover" />
+                  ) : (
+                    <ImgIcon className="w-6 h-6 text-stone-300" />
+                  )}
+                </div>
+                <label className="hover-scale flex-1 text-center cursor-pointer px-4 py-2.5 rounded-2xl bg-white/70 border border-stone-200 text-xs font-semibold text-stone-700">
+                  Choisir une photo
+                  <input type="file" accept="image/*" onChange={handleMemberPhotoUpload} className="hidden" />
+                </label>
+              </div>
+              <input
+                type="text"
+                placeholder="Nom complet"
+                value={newMemberForm.name}
+                onChange={(e) => setNewMemberForm(f => ({ ...f, name: e.target.value }))}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="text"
+                placeholder="Rôle au bureau (ex. Trésorier Général)"
+                value={newMemberForm.role}
+                onChange={(e) => setNewMemberForm(f => ({ ...f, role: e.target.value }))}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="text"
+                placeholder="Matricule (ex. 2026-ARSTM-04)"
+                value={newMemberForm.matricule}
+                onChange={(e) => setNewMemberForm(f => ({ ...f, matricule: e.target.value }))}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="password"
+                placeholder="Code PIN initial"
+                value={newMemberForm.pin}
+                onChange={(e) => setNewMemberForm(f => ({ ...f, pin: e.target.value }))}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <textarea
+                placeholder="Courte biographie (optionnel)"
+                value={newMemberForm.bio}
+                onChange={(e) => setNewMemberForm(f => ({ ...f, bio: e.target.value }))}
+                rows={3}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+              />
+            </div>
+
+            <button
+              onClick={handleAddMember}
+              disabled={isSavingMember}
+              className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
+            >
+              {isSavingMember ? "Ajout en cours..." : "Ajouter au bureau"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE CONFIRMATION SUPPRESSION MEMBRE */}
+      {memberToDelete && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4"
+          onClick={() => setMemberToDelete(null)}
+        >
+          <div
+            className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 text-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="w-11 h-11 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center">
+              <Trash className="w-5 h-5 text-rose-600" />
+            </div>
+            <div>
+              <h3 className="font-serif text-xl font-bold text-stone-900">Retirer ce membre ?</h3>
+              <p className="text-sm text-stone-600 mt-1">{memberToDelete.name} sera retiré(e) du bureau exécutif. Cette action est irréversible.</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setMemberToDelete(null)}
+                className="hover-scale flex-1 py-3 rounded-2xl bg-white/70 border border-stone-200 text-stone-700 font-semibold"
+              >
+                Annuler
+              </button>
+              <button
+                onClick={() => handleDeleteMember(memberToDelete)}
+                className="hover-scale flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg shadow-rose-600/30"
+              >
+                Retirer
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -443,13 +732,32 @@ function App() {
         {/* BUREAU / MEMBRES VIEW */}
         {activeTab === 'bureau' && (
           <div className="space-y-8">
-            <div>
-              <h2 className="font-serif text-3xl font-bold text-stone-900">Bureau Exécutif & Membres</h2>
-              <p className="text-stone-500">Représentants officiels de la Conférence des Grandes Écoles</p>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-stone-900">Bureau Exécutif</h2>
+                <p className="text-stone-500">Représentants officiels de la Conférence des Grandes Écoles</p>
+              </div>
+              {isAdminLoggedIn && (
+                <button
+                  onClick={() => setShowAddMemberModal(true)}
+                  className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"
+                >
+                  <Plus className="w-4 h-4" /> Ajouter un membre
+                </button>
+              )}
             </div>
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {members.map(m => (
-                <div key={m.id} className="glass-card rounded-3xl overflow-hidden hover-scale flex flex-col">
+                <div key={m.id} className="glass-card rounded-3xl overflow-hidden hover-scale flex flex-col relative">
+                  {isAdminLoggedIn && (
+                    <button
+                      onClick={() => setMemberToDelete(m)}
+                      aria-label={`Retirer ${m.name}`}
+                      className="absolute top-3 right-3 z-10 w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"
+                    >
+                      <Trash className="w-4 h-4" />
+                    </button>
+                  )}
                   <img src={m.image} alt={m.name} className="w-full h-56 object-cover" />
                   <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                     <div>
@@ -463,9 +771,65 @@ function App() {
                 </div>
               ))}
             </div>
+
+            <div className="space-y-4 pt-4">
+              <div>
+                <h3 className="font-serif text-2xl font-bold text-stone-900">Annuaire des Membres Inscrits</h3>
+                <p className="text-stone-500 text-sm">Comptes créés à partir du matricule — le code PIN est défini par chaque membre à sa première connexion.</p>
+              </div>
+              <div className="glass-card rounded-3xl overflow-hidden">
+                <div className="max-h-[520px] overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-white/80 backdrop-blur">
+                      <tr className="text-left text-stone-500 text-[11px] uppercase tracking-wide">
+                        <th className="px-5 py-3 font-semibold">N°</th>
+                        <th className="px-5 py-3 font-semibold">Nom & Prénoms</th>
+                        <th className="px-5 py-3 font-semibold">Matricule</th>
+                        {isAdminLoggedIn && <th className="px-5 py-3 font-semibold text-right">Action</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {registry.map((r, idx) => (
+                        <tr key={r.id} className="border-t border-stone-200/60">
+                          <td className="px-5 py-2.5 text-stone-500">{idx + 1}</td>
+                          <td className="px-5 py-2.5 font-semibold text-stone-800">
+                            {editingRegistryId === r.id ? (
+                              <input
+                                autoFocus
+                                value={editingNameValue}
+                                onChange={(e) => setEditingNameValue(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && handleSaveRegistryName(r.id)}
+                                className="w-full px-2 py-1 rounded-lg bg-white border border-orange-300 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                              />
+                            ) : r.name}
+                          </td>
+                          <td className="px-5 py-2.5 text-stone-600">{r.matricule}</td>
+                          {isAdminLoggedIn && (
+                            <td className="px-5 py-2.5 text-right whitespace-nowrap">
+                              {editingRegistryId === r.id ? (
+                                <span className="inline-flex gap-3">
+                                  <button onClick={() => handleSaveRegistryName(r.id)} className="text-emerald-600 hover:text-emerald-800 text-xs font-semibold">Enregistrer</button>
+                                  <button onClick={() => setEditingRegistryId(null)} className="text-stone-400 hover:text-stone-700 text-xs font-semibold">Annuler</button>
+                                </span>
+                              ) : (
+                                <button
+                                  onClick={() => { setEditingRegistryId(r.id); setEditingNameValue(r.name); }}
+                                  className="text-orange-600 hover:text-orange-800 text-xs font-semibold"
+                                >
+                                  Corriger
+                                </button>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
           </div>
         )}
-
         {/* EMPLOIS & STAGES VIEW (PROTECTED SECTION) */}
         {activeTab === 'emplois' && (
           isUserAuthenticated ? (
