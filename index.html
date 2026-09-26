@@ -122,6 +122,13 @@ const LogoCGE = ({ className = "w-10 h-10" }) => (
 
 const SITE_SALT = "cge-arstm-2026";
 const MAX_LOGIN_ATTEMPTS = 5;
+const PRESIDENT_MATRICULE = "ARSTM-CGE-0042";
+const getWelcomeMessage = (matricule, name, prefix = "Bienvenue") => {
+  if (matricule && matricule.toUpperCase() === PRESIDENT_MATRICULE) {
+    return `${prefix}, MR LE PRÉSIDENT`;
+  }
+  return `${prefix}, ${name.split(' ')[0]}`;
+};
 const hashSecret = async (id, secret) => {
   const data = new TextEncoder().encode(`${SITE_SALT}|${id}|${secret}`);
   const buf = await crypto.subtle.digest("SHA-256", data);
@@ -385,7 +392,7 @@ function App() {
               setFailedAttempts(0);
               setIsLocked(false);
               closeMemberModal();
-              showToastMsg(`Compte activé. Bienvenue, ${activated.name.split(' ')[0]}`);
+              showToastMsg(getWelcomeMessage(activated.matricule, activated.name, "Compte activé. Bienvenue"));
               return;
             }
             const h = await hashSecret(registrant.matricule, secret);
@@ -395,7 +402,7 @@ function App() {
               setFailedAttempts(0);
               setIsLocked(false);
               closeMemberModal();
-              showToastMsg(`Bienvenue, ${registrant.name.split(' ')[0]}`);
+              showToastMsg(getWelcomeMessage(registrant.matricule, registrant.name));
               return;
             }
           }
