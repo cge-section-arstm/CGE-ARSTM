@@ -78,7 +78,7 @@ const { useState, useEffect, useRef } = React;
 
 // Configuration Supabase
 const SUPABASE_URL = "https://vpzxsksbzzbncqawzium.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_Or7mvR3xPajl0zxFZdV1XQ_j3jvr..."; 
+const SUPABASE_ANON_KEY = "sb_publishable_Or7mvR3xPajlOzxFZdV1XQ_j3jvr5Vm";
 const supabaseClient = window.supabase ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 const Icon = ({ children, className = "w-5 h-5" }) => (
@@ -246,31 +246,47 @@ function App() {
   const navRef = useRef(null);
   const [pillStyle, setPillStyle] = useState({ left: 0, width: 0, opacity: 0 });
 
-  // Data Stores
-  const loadPersisted = (key, fallback) => {
-    try {
-      const saved = localStorage.getItem(key);
-      return saved ? JSON.parse(saved) : fallback;
-    } catch {
-      return fallback;
-    }
-  };
-  const [members, setMembers] = useState(() => loadPersisted('cge_arstm_members', initialMembers));
+  // Data Stores — synchronisés avec Supabase pour que les modifications de
+  // l'admin (membres, photos, activation des comptes) soient visibles sur
+  // tous les appareils, pas seulement sur celui qui les a faites.
+  const [members, setMembers] = useState(initialMembers);
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState(initialJobs);
   const [alumni, setAlumni] = useState(initialAlumni);
   const [gallery, setGallery] = useState(initialGallery);
-  const [registry, setRegistry] = useState(() => loadPersisted('cge_arstm_registry', initialRegistry));
+  const [registry, setRegistry] = useState(initialRegistry);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [supabaseReady, setSupabaseReady] = useState(false);
 
-  // Sauvegarde automatique dans le navigateur pour que les modifications
-  // (ajout/suppression de membres, photos, activation des comptes) survivent
-  // à un rafraîchissement de la page
+  const mapMemberRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role, bio: row.bio, image: row.image });
+  const mapRegistryRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role });
+
+  // Chargement initial depuis Supabase (source de vérité partagée)
   useEffect(() => {
-    try { localStorage.setItem('cge_arstm_members', JSON.stringify(members)); } catch {}
-  }, [members]);
-  useEffect(() => {
-    try { localStorage.setItem('cge_arstm_registry', JSON.stringify(registry)); } catch {}
-  }, [registry]);
+    if (!supabaseClient) return;
+    (async () => {
+      setIsSyncing(true);
+      try {
+        const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
+        if (!mErr && memberRows) {
+          setSupabaseReady(true);
+          setMembers(memberRows.length ? memberRows.map(mapMemberRow) : initialMembers);
+        } else if (mErr) {
+          console.error('Supabase (bureau_members):', mErr.message);
+        }
+        const { data: regRows, error: rErr } = await supabaseClient.from('member_registry').select('*').order('id');
+        if (!rErr && regRows) {
+          setRegistry(regRows.length ? regRows.map(mapRegistryRow) : initialRegistry);
+        } else if (rErr) {
+          console.error('Supabase (member_registry):', rErr.message);
+        }
+      } catch (e) {
+        console.error('Supabase sync error:', e);
+      } finally {
+        setIsSyncing(false);
+      }
+    })();
+  }, []);
 
   // Génération dynamique des éléments de navigation selon le statut de connexion
   const isUserAuthenticated = currentUser !== null || isAdminLoggedIn;
@@ -360,6 +376,10 @@ function App() {
               const h = await hashSecret(registrant.matricule, secret);
               const activated = { ...registrant, pinHash: h };
               setRegistry(prev => prev.map(r => r.id === registrant.id ? activated : r));
+              if (supabaseClient) {
+                const { error } = await supabaseClient.from('member_registry').update({ pin_hash: h }).eq('id', registrant.id);
+                if (error) console.error('Supabase (activation PIN):', error.message);
+              }
               setIsAdminLoggedIn(false);
               setCurrentUser(activated);
               setFailedAttempts(0);
@@ -431,25 +451,41 @@ function App() {
     setIsSavingMember(true);
     try {
       const pinHash = await hashSecret(matricule.trim(), pin.trim());
-      const newId = members.length ? Math.max(...members.map(m => m.id)) + 1 : 1;
-      const newMember = {
-        id: newId,
+      const memberData = {
         matricule: matricule.trim(),
-        pinHash,
+        pin_hash: pinHash,
         name: name.trim(),
         role: role.trim(),
         bio: bio.trim() || "Membre du bureau exécutif de la CGE ARSTM.",
         image: image || "https://images.unsplash.com/photo-1633332755192-727a05c4013d?auto=format&fit=crop&q=80&w=400"
       };
-      setMembers(prev => [...prev, newMember]);
+
+      if (supabaseClient) {
+        const { data, error } = await supabaseClient.from('bureau_members').insert(memberData).select().single();
+        if (error) {
+          showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + error.message);
+          return;
+        }
+        setMembers(prev => [...prev, mapMemberRow(data)]);
+      } else {
+        const newId = members.length ? Math.max(...members.map(m => m.id)) + 1 : 1;
+        setMembers(prev => [...prev, { id: newId, pinHash, ...memberData }]);
+      }
       closeAddMemberModal();
-      showToastMsg(`${newMember.name} a été ajouté(e) au bureau.`);
+      showToastMsg(`${memberData.name} a été ajouté(e) au bureau.`);
     } finally {
       setIsSavingMember(false);
     }
   };
 
-  const handleDeleteMember = (member) => {
+  const handleDeleteMember = async (member) => {
+    if (supabaseClient) {
+      const { error } = await supabaseClient.from('bureau_members').delete().eq('id', member.id);
+      if (error) {
+        showToastMsg("Impossible de retirer ce membre sur le serveur : " + error.message);
+        return;
+      }
+    }
     setMembers(prev => prev.filter(m => m.id !== member.id));
     setMemberToDelete(null);
     showToastMsg(`${member.name} a été retiré(e) du bureau.`);
