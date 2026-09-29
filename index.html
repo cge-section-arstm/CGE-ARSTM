@@ -104,7 +104,9 @@ const Sparkles = (p) => <Icon {...p}><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l
 const Trash = (p) => <Icon {...p}><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" /><path d="M10 11v6M14 11v6" /></Icon>;
 const Plus = (p) => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>;
 const Pencil = (p) => <Icon {...p}><path d="M16.5 4.5a2.1 2.1 0 0 1 3 3L7 20l-4 1 1-4Z" /><path d="M14.5 6.5l3 3" /></Icon>;
-const Image = ImgIcon;
+const ShieldCheck = (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></Icon>;
+const RefreshCw = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></Icon>;
+const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Icon>;
 
 const LogoCGE = ({ className = "w-10 h-10" }) => (
   <svg className={className} viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -124,12 +126,14 @@ const LogoCGE = ({ className = "w-10 h-10" }) => (
 const SITE_SALT = "cge-arstm-2026";
 const MAX_LOGIN_ATTEMPTS = 5;
 const PRESIDENT_MATRICULE = "ARSTM-CGE-0042";
+
 const getWelcomeMessage = (matricule, name, prefix = "Bienvenue") => {
   if (matricule && matricule.toUpperCase() === PRESIDENT_MATRICULE) {
     return `${prefix}, MR LE PRÉSIDENT`;
   }
   return `${prefix}, ${name.split(' ')[0]}`;
 };
+
 const hashSecret = async (id, secret) => {
   const data = new TextEncoder().encode(`${SITE_SALT}|${id}|${secret}`);
   const buf = await crypto.subtle.digest("SHA-256", data);
@@ -163,7 +167,6 @@ const initialAlumni = [
   { id: 3, name: "YAO Hermann", promo: "2022", role: "Responsable Logistique Bâtiment", company: "CMA CGM Côte d'Ivoire", matricule: "2022-ARSTM-05" }
 ];
 
-// Calendrier des événements à venir — alimenté par l'admin, vide par défaut
 const initialEvents = [];
 
 const initialGallery = [
@@ -172,8 +175,6 @@ const initialGallery = [
   { id: 3, title: "Journée Sportive Inter-Filières", category: "Vie Étudiante", image: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&q=80&w=600" }
 ];
 
-// Annuaire des membres inscrits — comptes créés à partir du matricule ; le code
-// PIN est défini par chaque membre lors de sa toute première connexion (pinHash: null)
 const initialRegistry = [
   { id: 1, matricule: "ARSTM-CGE-0001", name: "KOUAME HANIELLE RUTH", role: "Membre", pinHash: null },
   { id: 2, matricule: "ARSTM-CGE-0002", name: "APOMOLIA APA", role: "Membre", pinHash: null },
@@ -232,7 +233,6 @@ const initialRegistry = [
   { id: 55, matricule: "ARSTM-CGE-0055", name: "OUATTARA INES", role: "Membre", pinHash: null }
 ];
 
-// Configuration générique des contenus gérables par l'admin (ajout / modification / suppression)
 const RESOURCE_CONFIGS = {
   jobs: {
     table: 'jobs',
@@ -305,19 +305,23 @@ function App() {
   const [newMemberForm, setNewMemberForm] = useState({ name: '', role: '', matricule: '', bio: '', pin: '', image: '' });
   const [isSavingMember, setIsSavingMember] = useState(false);
 
-  // Gestion admin générique (emplois & stages, événements, alumni, médiathèque)
+  // Espace Admin / Gestion des membres inscrits
+  const [adminSearchQuery, setAdminSearchQuery] = useState('');
+  const [resetModalMember, setResetModalMember] = useState(null);
+  const [newPinResetInput, setNewPinResetInput] = useState('');
+  const [isResettingPin, setIsResettingPin] = useState(false);
+
+  // Gestion admin générique
   const [resourceModal, setResourceModal] = useState({ type: null, editingId: null });
   const [resourceForm, setResourceForm] = useState({});
   const [isSavingResource, setIsSavingResource] = useState(false);
-  const [resourceToDelete, setResourceToDelete] = useState(null); // { type, item }
+  const [resourceToDelete, setResourceToDelete] = useState(null);
 
-  // Pillar animation positioning ref
+  // Navigation Ref
   const navRef = useRef(null);
   const [pillStyle, setPillStyle] = useState({ left: 0, width: 0, opacity: 0 });
 
-  // Data Stores — synchronisés avec Supabase pour que les modifications de
-  // l'admin (membres, photos, activation des comptes) soient visibles sur
-  // tous les appareils, pas seulement sur celui qui les a faites.
+  // Data Stores
   const [members, setMembers] = useState(initialMembers);
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState(initialJobs);
@@ -331,48 +335,52 @@ function App() {
   const mapMemberRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role, bio: row.bio, image: row.image });
   const mapRegistryRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role });
 
-  // Les colonnes des tables jobs / events / alumni / gallery portent les
-  // mêmes noms que les champs utilisés côté React : pas de mapping nécessaire.
   const RESOURCE_STATE = { jobs: [jobs, setJobs, initialJobs], events: [events, setEvents, initialEvents], alumni: [alumni, setAlumni, initialAlumni], gallery: [gallery, setGallery, initialGallery] };
 
-  // Chargement initial depuis Supabase (source de vérité partagée)
+  // Fonction réutilisable de chargement complet des données
+  const fetchAllData = async () => {
+    if (!supabaseClient) return;
+    try {
+      const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
+      if (!mErr && memberRows) {
+        setSupabaseReady(true);
+        setMembers(memberRows.length ? memberRows.map(mapMemberRow) : initialMembers);
+      }
+      const { data: regRows, error: rErr } = await supabaseClient.from('member_registry').select('*').order('id');
+      if (!rErr && regRows) {
+        setRegistry(regRows.length ? regRows.map(mapRegistryRow) : initialRegistry);
+      }
+      for (const type of Object.keys(RESOURCE_CONFIGS)) {
+        const { table } = RESOURCE_CONFIGS[type];
+        const { data: rows, error } = await supabaseClient.from(table).select('*').order('id');
+        if (!error && rows) {
+          const setter = RESOURCE_STATE[type][1];
+          setter(rows);
+        }
+      }
+    } catch (e) {
+      console.error('Supabase sync error:', e);
+    }
+  };
+
   useEffect(() => {
     if (!supabaseClient) return;
-    (async () => {
-      setIsSyncing(true);
-      try {
-        const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
-        if (!mErr && memberRows) {
-          setSupabaseReady(true);
-          setMembers(memberRows.length ? memberRows.map(mapMemberRow) : initialMembers);
-        } else if (mErr) {
-          console.error('Supabase (bureau_members):', mErr.message);
-        }
-        const { data: regRows, error: rErr } = await supabaseClient.from('member_registry').select('*').order('id');
-        if (!rErr && regRows) {
-          setRegistry(regRows.length ? regRows.map(mapRegistryRow) : initialRegistry);
-        } else if (rErr) {
-          console.error('Supabase (member_registry):', rErr.message);
-        }
-        for (const type of Object.keys(RESOURCE_CONFIGS)) {
-          const { table } = RESOURCE_CONFIGS[type];
-          const { data: rows, error } = await supabaseClient.from(table).select('*').order('id');
-          if (!error && rows) {
-            const setter = RESOURCE_STATE[type][1];
-            setter(rows);
-          } else if (error) {
-            console.error(`Supabase (${table}):`, error.message);
-          }
-        }
-      } catch (e) {
-        console.error('Supabase sync error:', e);
-      } finally {
-        setIsSyncing(false);
-      }
-    })();
+    setIsSyncing(true);
+    fetchAllData().finally(() => setIsSyncing(false));
+
+    // ABONNEMENT EN TEMPS RÉEL (REALTIME)
+    // Synchronise automatiquement tous les clients dès qu'une modification survient en BDD
+    const realtimeChannel = supabaseClient.channel('db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public' }, () => {
+        fetchAllData();
+      })
+      .subscribe();
+
+    return () => {
+      supabaseClient.removeChannel(realtimeChannel);
+    };
   }, []);
 
-  // Génération dynamique des éléments de navigation selon le statut de connexion
   const isUserAuthenticated = currentUser !== null || isAdminLoggedIn;
 
   const baseNavItems = [
@@ -382,18 +390,21 @@ function App() {
     { id: 'activites', label: 'Activités', icon: Calendar },
     { id: 'alumni', label: 'Alumni', icon: GraduationCap },
     { id: 'mediatheque', label: 'Médiathèque', icon: Image },
+    { id: 'admin-space', label: 'Gestion Admin', icon: ShieldCheck, adminOnly: true },
     { id: 'contact', label: 'Contact', icon: Mail },
   ];
 
-  // Filtrage des éléments pour n'afficher la section d'offres d'emploi qu'une fois connecté
-  const navItems = baseNavItems.filter(item => !item.protected || isUserAuthenticated);
+  const navItems = baseNavItems.filter(item => {
+    if (item.adminOnly) return isAdminLoggedIn;
+    if (item.protected) return isUserAuthenticated;
+    return true;
+  });
 
   const showToastMsg = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Met à jour la position de la pilule suiveuse (Apple Liquid Glass Pill)
   useEffect(() => {
     const targetId = hoveredTab || activeTab;
     if (!navRef.current) return;
@@ -407,7 +418,7 @@ function App() {
     } else {
       setPillStyle(prev => ({ ...prev, opacity: 0 }));
     }
-  }, [activeTab, hoveredTab, isUserAuthenticated]);
+  }, [activeTab, hoveredTab, isUserAuthenticated, isAdminLoggedIn]);
 
   const closeMemberModal = () => {
     setShowMemberModal(false);
@@ -415,7 +426,6 @@ function App() {
     setMemberPinInput('');
   };
 
-  // Connexion (membre ou administrateur)
   const handleMemberLogin = async () => {
     if (isLocked) return;
     const id = memberMatriculeInput.trim();
@@ -456,13 +466,11 @@ function App() {
           const registrant = registry.find(r => r.matricule.toLowerCase() === id.toLowerCase());
           if (registrant) {
             if (!registrant.pinHash) {
-              // Première connexion : le code saisi devient le code PIN personnel du membre
               const h = await hashSecret(registrant.matricule, secret);
               const activated = { ...registrant, pinHash: h };
               setRegistry(prev => prev.map(r => r.id === registrant.id ? activated : r));
               if (supabaseClient) {
-                const { error } = await supabaseClient.from('member_registry').update({ pin_hash: h }).eq('id', registrant.id);
-                if (error) console.error('Supabase (activation PIN):', error.message);
+                await supabaseClient.from('member_registry').update({ pin_hash: h }).eq('id', registrant.id);
               }
               setIsAdminLoggedIn(false);
               setCurrentUser(activated);
@@ -507,6 +515,45 @@ function App() {
     showToastMsg("Déconnexion réussie.");
   };
 
+  // --- Réinitialisation de mot de passe par l'administrateur ---
+  const handleAdminResetPin = async () => {
+    if (!resetModalMember) return;
+    const newPin = newPinResetInput.trim();
+    if (!newPin) {
+      showToastMsg("Veuillez saisir un nouveau code PIN / mot de passe.");
+      return;
+    }
+
+    setIsResettingPin(true);
+    try {
+      const pinHash = await hashSecret(resetModalMember.matricule, newPin);
+      
+      const isBureauMember = members.some(m => m.id === resetModalMember.id && m.matricule === resetModalMember.matricule);
+      
+      if (isBureauMember) {
+        setMembers(prev => prev.map(m => m.id === resetModalMember.id ? { ...m, pinHash } : m));
+        if (supabaseClient) {
+          await supabaseClient.from('bureau_members').update({ pin_hash: pinHash }).eq('id', resetModalMember.id);
+        }
+      } else {
+        setRegistry(prev => prev.map(r => r.id === resetModalMember.id ? { ...r, pinHash } : r));
+        if (supabaseClient) {
+          await supabaseClient.from('member_registry').update({ pin_hash: pinHash }).eq('id', resetModalMember.id);
+        }
+      }
+
+      if (isLocked) setIsLocked(false);
+
+      showToastMsg(`Mot de passe réinitialisé pour ${resetModalMember.name}.`);
+      setResetModalMember(null);
+      setNewPinResetInput('');
+    } catch (err) {
+      showToastMsg("Erreur lors de la réinitialisation : " + err.message);
+    } finally {
+      setIsResettingPin(false);
+    }
+  };
+
   const closeAddMemberModal = () => {
     setShowAddMemberModal(false);
     setEditingMemberId(null);
@@ -525,24 +572,12 @@ function App() {
     setShowAddMemberModal(true);
   };
 
-  const handleMemberPhotoUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setNewMemberForm(f => ({ ...f, image: reader.result }));
-    };
-    reader.readAsDataURL(file);
-  };
-
   const handleSaveMember = async () => {
     const { name, role, matricule, bio, pin, image } = newMemberForm;
     const isEditing = editingMemberId !== null;
 
     if (!name.trim() || !role.trim() || !matricule.trim() || (!isEditing && !pin.trim())) {
-      showToastMsg(isEditing
-        ? "Nom, rôle et matricule sont obligatoires."
-        : "Nom, rôle, matricule et code PIN sont obligatoires.");
+      showToastMsg(isEditing ? "Nom, rôle et matricule sont obligatoires." : "Nom, rôle, matricule et code PIN sont obligatoires.");
       return;
     }
     if (members.some(m => m.matricule.toLowerCase() === matricule.trim().toLowerCase() && m.id !== editingMemberId)) {
@@ -576,7 +611,6 @@ function App() {
         } else {
           setMembers(prev => prev.map(m => m.id === editingMemberId ? { ...m, ...memberData, pinHash: newPinHash || m.pinHash } : m));
         }
-        // Si l'utilisateur en cours de session est ce même membre, on met à jour son affichage
         setCurrentUser(prev => (prev && prev.id === editingMemberId && !isAdminLoggedIn) ? { ...prev, ...memberData, pinHash: newPinHash || prev.pinHash } : prev);
         closeAddMemberModal();
         showToastMsg(`${memberData.name} a été modifié(e) avec succès.`);
@@ -623,7 +657,6 @@ function App() {
     showToastMsg(`${member.name} a été retiré(e) du bureau.`);
   };
 
-  // ---- Gestion admin générique (emplois, événements, alumni, médiathèque) ----
   const openAddResource = (type) => {
     const config = RESOURCE_CONFIGS[type];
     const blank = {};
@@ -643,14 +676,6 @@ function App() {
   const closeResourceModal = () => {
     setResourceModal({ type: null, editingId: null });
     setResourceForm({});
-  };
-
-  const handleResourceImageUpload = (e) => {
-    const file = e.target.files && e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setResourceForm(f => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
   };
 
   const handleSaveResource = async () => {
@@ -719,6 +744,11 @@ function App() {
     showToastMsg(`${config.titleSingular} supprimé(e) avec succès.`);
   };
 
+  const filteredRegistry = registry.filter(item => 
+    item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) || 
+    item.matricule.toLowerCase().includes(adminSearchQuery.toLowerCase())
+  );
+
   return (
     <div className="min-h-screen flex flex-col text-stone-800 font-sans antialiased selection:bg-orange-500 selection:text-white">
       
@@ -730,24 +760,41 @@ function App() {
         </div>
       )}
 
+      {/* MODALE REINITIALISATION CODE PIN (ADMIN) */}
+      {resetModalMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setResetModalMember(null)}>
+          <div className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setResetModalMember(null)} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"><X className="w-5 h-5" /></button>
+            <div className="space-y-1">
+              <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 text-orange-600" />
+              </div>
+              <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">Réinitialiser le Code PIN</h3>
+              <p className="text-xs text-stone-500">Définissez un nouveau mot de passe/code PIN pour <strong>{resetModalMember.name}</strong> ({resetModalMember.matricule}).</p>
+            </div>
+            <input
+              type="password"
+              placeholder="Nouveau code PIN / mot de passe"
+              value={newPinResetInput}
+              onChange={(e) => setNewPinResetInput(e.target.value)}
+              className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+            />
+            <button
+              onClick={handleAdminResetPin}
+              disabled={isResettingPin}
+              className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
+            >
+              {isResettingPin ? "Modification..." : "Valider la modification"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* MODALE ESPACE MEMBRE */}
       {showMemberModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4"
-          onClick={closeMemberModal}
-        >
-          <div
-            className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 relative"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={closeMemberModal}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"
-              aria-label="Fermer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={closeMemberModal}>
+          <div className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 relative" onClick={(e) => e.stopPropagation()}>
+            <button onClick={closeMemberModal} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700" aria-label="Fermer"><X className="w-5 h-5" /></button>
             <div className="space-y-1">
               <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
                 <Key className="w-5 h-5 text-orange-600" />
@@ -755,7 +802,6 @@ function App() {
               <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">Espace Membre</h3>
               <p className="text-xs text-stone-500">Connectez-vous pour débloquer l'accès aux offres d'emplois & stages.</p>
             </div>
-
             <div className="space-y-3">
               <input
                 type="text"
@@ -777,254 +823,13 @@ function App() {
                 className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50"
               />
             </div>
-
             {isLocked ? (
               <p className="text-xs font-semibold text-rose-600 text-center leading-relaxed">Compte verrouillé après 5 tentatives infructueuses. Veuillez vous rapprocher du bureau informatique pour réinitialiser votre compte.</p>
             ) : (
-              <button
-                onClick={handleMemberLogin}
-                disabled={isCheckingLogin}
-                className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
-              >
+              <button onClick={handleMemberLogin} disabled={isCheckingLogin} className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60">
                 {isCheckingLogin ? "Vérification..." : "Se connecter"}
               </button>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* MODALE AJOUT D'UN MEMBRE (ADMIN) */}
-      {showAddMemberModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 overflow-y-auto"
-          onClick={closeAddMemberModal}
-        >
-          <div
-            className="glass-card w-full max-w-md rounded-3xl p-8 space-y-5 relative my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={closeAddMemberModal}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"
-              aria-label="Fermer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1">
-              <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
-                {editingMemberId ? <Pencil className="w-5 h-5 text-orange-600" /> : <Plus className="w-5 h-5 text-orange-600" />}
-              </div>
-              <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">{editingMemberId ? "Modifier ce membre du bureau" : "Ajouter un membre du bureau"}</h3>
-              <p className="text-xs text-stone-500">Renseignez son identité, sa photo et son rôle au sein du bureau.</p>
-            </div>
-
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <div className="w-16 h-16 rounded-2xl bg-white/70 border border-stone-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                  {newMemberForm.image ? (
-                    <img src={newMemberForm.image} alt="Aperçu" className="w-full h-full object-cover" />
-                  ) : (
-                    <ImgIcon className="w-6 h-6 text-stone-300" />
-                  )}
-                </div>
-                <label className="hover-scale flex-1 text-center cursor-pointer px-4 py-2.5 rounded-2xl bg-white/70 border border-stone-200 text-xs font-semibold text-stone-700">
-                  Choisir une photo
-                  <input type="file" accept="image/*" onChange={handleMemberPhotoUpload} className="hidden" />
-                </label>
-              </div>
-              <input
-                type="text"
-                placeholder="Nom complet"
-                value={newMemberForm.name}
-                onChange={(e) => setNewMemberForm(f => ({ ...f, name: e.target.value }))}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <input
-                type="text"
-                placeholder="Rôle au bureau (ex. Trésorier Général)"
-                value={newMemberForm.role}
-                onChange={(e) => setNewMemberForm(f => ({ ...f, role: e.target.value }))}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <input
-                type="text"
-                placeholder="Matricule (ex. 2026-ARSTM-04)"
-                value={newMemberForm.matricule}
-                onChange={(e) => setNewMemberForm(f => ({ ...f, matricule: e.target.value }))}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <input
-                type="password"
-                placeholder={editingMemberId ? "Nouveau code PIN (laisser vide pour ne pas changer)" : "Code PIN initial"}
-                value={newMemberForm.pin}
-                onChange={(e) => setNewMemberForm(f => ({ ...f, pin: e.target.value }))}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-              />
-              <textarea
-                placeholder="Courte biographie (optionnel)"
-                value={newMemberForm.bio}
-                onChange={(e) => setNewMemberForm(f => ({ ...f, bio: e.target.value }))}
-                rows={3}
-                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-              />
-            </div>
-
-            <button
-              onClick={handleSaveMember}
-              disabled={isSavingMember}
-              className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
-            >
-              {isSavingMember
-                ? (editingMemberId ? "Enregistrement..." : "Ajout en cours...")
-                : (editingMemberId ? "Enregistrer les modifications" : "Ajouter au bureau")}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODALE CONFIRMATION SUPPRESSION MEMBRE */}
-      {memberToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4"
-          onClick={() => setMemberToDelete(null)}
-        >
-          <div
-            className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center">
-              <Trash className="w-5 h-5 text-rose-600" />
-            </div>
-            <div>
-              <h3 className="font-serif text-xl font-bold text-stone-900">Retirer ce membre ?</h3>
-              <p className="text-sm text-stone-600 mt-1">{memberToDelete.name} sera retiré(e) du bureau exécutif. Cette action est irréversible.</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setMemberToDelete(null)}
-                className="hover-scale flex-1 py-3 rounded-2xl bg-white/70 border border-stone-200 text-stone-700 font-semibold"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={() => handleDeleteMember(memberToDelete)}
-                className="hover-scale flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg shadow-rose-600/30"
-              >
-                Retirer
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* MODALE GÉNÉRIQUE AJOUT / MODIFICATION (emplois, événements, alumni, médiathèque) */}
-      {resourceModal.type && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 overflow-y-auto"
-          onClick={closeResourceModal}
-        >
-          <div
-            className="glass-card w-full max-w-md rounded-3xl p-8 space-y-5 relative my-8"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={closeResourceModal}
-              className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"
-              aria-label="Fermer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-1">
-              <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
-                {resourceModal.editingId ? <Pencil className="w-5 h-5 text-orange-600" /> : <Plus className="w-5 h-5 text-orange-600" />}
-              </div>
-              <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">
-                {resourceModal.editingId ? `Modifier : ${RESOURCE_CONFIGS[resourceModal.type].titleSingular}` : RESOURCE_CONFIGS[resourceModal.type].addLabel}
-              </h3>
-            </div>
-
-            <div className="space-y-3">
-              {RESOURCE_CONFIGS[resourceModal.type].fields.map(f => (
-                <div key={f.key}>
-                  {f.type === 'image' ? (
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-2xl bg-white/70 border border-stone-200 overflow-hidden flex items-center justify-center flex-shrink-0">
-                        {resourceForm.image ? (
-                          <img src={resourceForm.image} alt="Aperçu" className="w-full h-full object-cover" />
-                        ) : (
-                          <ImgIcon className="w-6 h-6 text-stone-300" />
-                        )}
-                      </div>
-                      <label className="hover-scale flex-1 text-center cursor-pointer px-4 py-2.5 rounded-2xl bg-white/70 border border-stone-200 text-xs font-semibold text-stone-700">
-                        Choisir une photo
-                        <input type="file" accept="image/*" onChange={handleResourceImageUpload} className="hidden" />
-                      </label>
-                    </div>
-                  ) : f.type === 'textarea' ? (
-                    <textarea
-                      placeholder={f.label}
-                      value={resourceForm[f.key] || ''}
-                      onChange={(e) => setResourceForm(v => ({ ...v, [f.key]: e.target.value }))}
-                      rows={3}
-                      className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
-                    />
-                  ) : (
-                    <input
-                      type="text"
-                      placeholder={f.label}
-                      value={resourceForm[f.key] || ''}
-                      onChange={(e) => setResourceForm(v => ({ ...v, [f.key]: e.target.value }))}
-                      className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
-                    />
-                  )}
-                </div>
-              ))}
-            </div>
-
-            <button
-              onClick={handleSaveResource}
-              disabled={isSavingResource}
-              className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
-            >
-              {isSavingResource ? "Enregistrement..." : (resourceModal.editingId ? "Enregistrer les modifications" : "Ajouter")}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODALE CONFIRMATION SUPPRESSION GÉNÉRIQUE */}
-      {resourceToDelete && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4"
-          onClick={() => setResourceToDelete(null)}
-        >
-          <div
-            className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 text-center"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="w-11 h-11 mx-auto rounded-2xl bg-rose-500/15 border border-rose-500/25 flex items-center justify-center">
-              <Trash className="w-5 h-5 text-rose-600" />
-            </div>
-            <div>
-              <h3 className="font-serif text-xl font-bold text-stone-900">Confirmer la suppression ?</h3>
-              <p className="text-sm text-stone-600 mt-1">Cette action est irréversible.</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setResourceToDelete(null)}
-                className="hover-scale flex-1 py-3 rounded-2xl bg-white/70 border border-stone-200 text-stone-700 font-semibold"
-              >
-                Annuler
-              </button>
-              <button
-                onClick={handleDeleteResource}
-                className="hover-scale flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold shadow-lg shadow-rose-600/30"
-              >
-                Supprimer
-              </button>
-            </div>
           </div>
         </div>
       )}
@@ -1082,10 +887,7 @@ function App() {
                   L'espace communautaire interactif dédié à la cohésion, aux opportunités de carrière et au rayonnement des élèves officiers et ingénieurs.
                 </p>
                 {!isUserAuthenticated && (
-                  <button
-                    onClick={() => setShowMemberModal(true)}
-                    className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm"
-                  >
+                  <button onClick={() => setShowMemberModal(true)} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm">
                     <Key className="w-4 h-4" /> Connectez-vous pour voir les opportunités
                   </button>
                 )}
@@ -1111,6 +913,82 @@ function App() {
           </div>
         )}
 
+        {/* ESPACE ADMIN DÉDIÉ */}
+        {activeTab === 'admin-space' && isAdminLoggedIn && (
+          <div className="space-y-8">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-stone-900">Espace d'Administration</h2>
+                <p className="text-stone-500">Gestion de l'annuaire, contrôle des accès et réinitialisation des mots de passe</p>
+              </div>
+              <div className="relative w-full sm:w-72">
+                <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
+                <input
+                  type="text"
+                  placeholder="Rechercher par nom ou matricule..."
+                  value={adminSearchQuery}
+                  onChange={(e) => setAdminSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 rounded-2xl bg-white/70 border border-stone-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                />
+              </div>
+            </div>
+
+            <div className="glass-card rounded-3xl overflow-hidden shadow-lg border border-white/60">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm text-stone-700">
+                  <thead className="bg-orange-500/10 text-orange-900 font-serif font-bold text-xs uppercase tracking-wider border-b border-orange-500/20">
+                    <tr>
+                      <th className="px-6 py-4">Membre</th>
+                      <th className="px-6 py-4">Matricule</th>
+                      <th className="px-6 py-4">Statut Compte</th>
+                      <th className="px-6 py-4 text-right">Actions Admin</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-stone-200/60 font-medium">
+                    {filteredRegistry.map(m => {
+                      const isConnected = currentUser && currentUser.matricule === m.matricule;
+                      return (
+                        <tr key={m.id} className="hover:bg-orange-50/40 transition duration-150">
+                          <td className="px-6 py-4 whitespace-nowrap font-bold text-stone-900 flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-orange-600/15 text-orange-700 flex items-center justify-center font-bold text-xs">
+                              {m.name.charAt(0)}
+                            </div>
+                            {m.name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap font-mono text-xs">{m.matricule}</td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            {isConnected ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 text-xs font-semibold">
+                                <span className="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span> En ligne
+                              </span>
+                            ) : m.pinHash ? (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 text-blue-700 border border-blue-500/30 text-xs font-semibold">
+                                Compte Actif
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/30 text-xs font-semibold">
+                                En attente d'activation
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right">
+                            <button
+                              onClick={() => { setResetModalMember(m); setNewPinResetInput(''); }}
+                              className="hover-scale inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-orange-600 text-white text-xs font-semibold shadow-md shadow-orange-600/20"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" /> Réinitialiser Mot de Passe
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* BUREAU / MEMBRES VIEW */}
         {activeTab === 'bureau' && (
           <div className="space-y-8">
@@ -1120,10 +998,7 @@ function App() {
                 <p className="text-stone-500">Représentants officiels de la Conférence des Grandes Écoles</p>
               </div>
               {isAdminLoggedIn && (
-                <button
-                  onClick={openAddMemberModal}
-                  className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"
-                >
+                <button onClick={openAddMemberModal} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
                   <Plus className="w-4 h-4" /> Ajouter un membre
                 </button>
               )}
@@ -1133,28 +1008,14 @@ function App() {
                 <div key={m.id} className="glass-card rounded-3xl overflow-hidden hover-scale flex flex-col relative">
                   {isAdminLoggedIn && (
                     <div className="absolute top-3 right-3 z-10 flex gap-2">
-                      <button
-                        onClick={() => openEditMemberModal(m)}
-                        aria-label={`Modifier ${m.name}`}
-                        className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"
-                      >
-                        <Pencil className="w-4 h-4" />
-                      </button>
-                      <button
-                        onClick={() => setMemberToDelete(m)}
-                        aria-label={`Retirer ${m.name}`}
-                        className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"
-                      >
-                        <Trash className="w-4 h-4" />
-                      </button>
+                      <button onClick={() => openEditMemberModal(m)} aria-label={`Modifier ${m.name}`} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
+                      <button onClick={() => setMemberToDelete(m)} aria-label={`Retirer ${m.name}`} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
                     </div>
                   )}
                   <img src={m.image} alt={m.name} className="w-full h-56 object-cover" />
                   <div className="p-6 flex-1 flex flex-col justify-between space-y-4">
                     <div>
-                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-600 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full inline-block mb-2">
-                        {m.role}
-                      </span>
+                      <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-600 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full inline-block mb-2">{m.role}</span>
                       <h3 className="font-serif text-xl font-bold text-stone-900">{m.name}</h3>
                       <p className="text-stone-600 text-sm mt-2 leading-relaxed">{m.bio}</p>
                     </div>
@@ -1164,7 +1025,8 @@ function App() {
             </div>
           </div>
         )}
-        {/* EMPLOIS & STAGES VIEW (PROTECTED SECTION) */}
+
+        {/* EMPLOIS & STAGES VIEW */}
         {activeTab === 'emplois' && (
           isUserAuthenticated ? (
             <div className="space-y-8">
@@ -1184,8 +1046,8 @@ function App() {
                   <div key={j.id} className="glass-card p-6 rounded-3xl hover-scale flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
                     {isAdminLoggedIn && (
                       <div className="absolute top-4 right-4 flex gap-2">
-                        <button onClick={() => openEditResource('jobs', j)} aria-label="Modifier" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setResourceToDelete({ type: 'jobs', item: j })} aria-label="Supprimer" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
+                        <button onClick={() => openEditResource('jobs', j)} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setResourceToDelete({ type: 'jobs', item: j })} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
                       </div>
                     )}
                     <div className="space-y-2">
@@ -1199,7 +1061,6 @@ function App() {
                     </button>
                   </div>
                 ))}
-                {jobs.length === 0 && <p className="text-stone-500 text-sm text-center py-8">Aucune offre publiée pour le moment.</p>}
               </div>
             </div>
           ) : (
@@ -1235,12 +1096,6 @@ function App() {
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {events.map(ev => (
                   <div key={ev.id} className="glass-card p-6 rounded-3xl hover-scale space-y-3 relative">
-                    {isAdminLoggedIn && (
-                      <div className="absolute top-4 right-4 flex gap-2">
-                        <button onClick={() => openEditResource('events', ev)} aria-label="Modifier" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setResourceToDelete({ type: 'events', item: ev })} aria-label="Supprimer" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
-                      </div>
-                    )}
                     <span className="text-xs font-bold text-orange-600 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full inline-block">{ev.date}</span>
                     <h3 className="font-serif text-lg font-bold text-stone-900 pr-16">{ev.title}</h3>
                     <p className="text-stone-600 text-sm">{ev.description}</p>
@@ -1265,12 +1120,6 @@ function App() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {alumni.map(a => (
                 <div key={a.id} className="glass-card p-6 rounded-3xl hover-scale space-y-3 relative">
-                  {isAdminLoggedIn && (
-                    <div className="absolute top-4 right-4 flex gap-2">
-                      <button onClick={() => openEditResource('alumni', a)} aria-label="Modifier" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => setResourceToDelete({ type: 'alumni', item: a })} aria-label="Supprimer" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
-                    </div>
-                  )}
                   <div className="flex justify-between items-start pr-16">
                     <h3 className="font-serif text-lg font-bold text-stone-900">{a.name}</h3>
                     <span className="text-xs font-bold text-orange-600 bg-orange-500/10 px-2.5 py-1 rounded-lg whitespace-nowrap">Promo {a.promo}</span>
@@ -1297,12 +1146,6 @@ function App() {
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
               {gallery.map(item => (
                 <div key={item.id} className="glass-card rounded-3xl overflow-hidden hover-scale group relative">
-                  {isAdminLoggedIn && (
-                    <div className="absolute top-3 right-3 z-10 flex gap-2">
-                      <button onClick={() => openEditResource('gallery', item)} aria-label="Modifier" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                      <button onClick={() => setResourceToDelete({ type: 'gallery', item })} aria-label="Supprimer" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
-                    </div>
-                  )}
                   <img src={item.image} alt={item.title} className="w-full h-52 object-cover transition duration-500 group-hover:scale-105" />
                   <div className="p-5">
                     <span className="text-[10px] font-bold uppercase tracking-wide text-orange-600">{item.category}</span>
@@ -1339,10 +1182,7 @@ function App() {
                 <p className="text-stone-500 text-sm mt-1">Accès administrateur</p>
               )}
             </div>
-            <button
-              onClick={handleLogout}
-              className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 text-white font-semibold"
-            >
+            <button onClick={handleLogout} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 text-white font-semibold">
               <LogOut className="w-4 h-4" /> Se déconnecter
             </button>
           </div>
@@ -1357,7 +1197,6 @@ function App() {
           onMouseLeave={() => setHoveredTab(null)}
           className="pointer-events-auto relative glass-dock p-2 rounded-full flex items-center gap-1 max-w-full overflow-x-auto no-scrollbar"
         >
-          {/* Pilule suiveuse (Apple Liquid Indicator) */}
           <div
             className="absolute top-2 bottom-2 liquid-pill rounded-full pointer-events-none"
             style={{
