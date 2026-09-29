@@ -30,7 +30,7 @@
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   body { 
     margin: 0; 
-    background: radial-gradient(circle at 50% 0%, #fff7ed 0%, #fef3c7 40%, #fdfbf6 100%);
+    background: linear-gradient(180deg, #e9f1f7 0%, #f3f6f6 35%, #fbf7ee 100%);
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -281,6 +281,91 @@ const RESOURCE_CONFIGS = {
     ],
   },
 };
+
+
+// ---------- Habillage maritime (vectoriel, sans image IA) ----------
+// Pour une vraie photo (port d'Abidjan, campus ARSTM, navire-école...), colle son URL ici.
+// Laisse vide "" pour garder l'illustration vectorielle.
+const HERO_PHOTO = "";
+
+const MaritimeBackground = () => (
+  <div aria-hidden="true" className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
+    <svg className="w-full h-full" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <pattern id="chartGrid" width="90" height="90" patternUnits="userSpaceOnUse">
+          <path d="M90 0H0V90" stroke="#0c2a4a" strokeWidth="1" opacity="0.07" />
+        </pattern>
+        <linearGradient id="seaFade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#1e5a86" stopOpacity="0" />
+          <stop offset="1" stopColor="#1e5a86" stopOpacity="0.14" />
+        </linearGradient>
+      </defs>
+
+      {/* Quadrillage de carte marine */}
+      <rect width="1440" height="900" fill="url(#chartGrid)" />
+
+      {/* Rose des vents */}
+      <g transform="translate(1210 190)" stroke="#0c2a4a" opacity="0.13">
+        <circle r="140" strokeWidth="1.5" />
+        <circle r="112" strokeWidth="1" strokeDasharray="2 6" />
+        <circle r="30" strokeWidth="1" />
+        <path d="M0 -150 L16 -16 L150 0 L16 16 L0 150 L-16 16 L-150 0 L-16 -16 Z" strokeWidth="1.5" fill="#0c2a4a" fillOpacity="0.06" />
+        <path d="M0 -105 L10 -10 L105 0 L10 10 L0 105 L-10 10 L-105 0 L-10 -10 Z" transform="rotate(45)" strokeWidth="1" />
+        <g fill="#0c2a4a" stroke="none" fontFamily="Inter, sans-serif" fontWeight="700" fontSize="18" textAnchor="middle">
+          <text y="-158">N</text><text x="164" y="6">E</text><text y="176">S</text><text x="-164" y="6">O</text>
+        </g>
+      </g>
+
+      {/* Route maritime en pointillés */}
+      <path d="M-20 640 C 240 560, 420 700, 700 610 S 1150 520, 1460 590" stroke="#EA580C" strokeWidth="2" strokeDasharray="3 9" strokeLinecap="round" opacity="0.35" />
+      <circle cx="700" cy="610" r="5" fill="#EA580C" opacity="0.45" />
+
+      {/* Sondes bathymétriques */}
+      <g fill="#0c2a4a" opacity="0.22" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="500">
+        <text x="120" y="720">12</text><text x="330" y="780">18</text><text x="560" y="740">24</text>
+        <text x="880" y="790">31</text><text x="1090" y="730">27</text><text x="1300" y="800">42</text>
+      </g>
+
+      {/* Courbes de niveau / houle */}
+      <g stroke="#0c2a4a" strokeWidth="1.3" strokeLinecap="round">
+        <path d="M0 760 C 180 730, 360 790, 540 760 S 900 730, 1080 765 S 1340 790, 1440 760" opacity="0.14" />
+        <path d="M0 810 C 200 780, 380 840, 580 808 S 940 780, 1120 815 S 1360 838, 1440 808" opacity="0.11" />
+        <path d="M0 860 C 220 832, 420 888, 620 858 S 980 832, 1160 862 S 1380 884, 1440 858" opacity="0.09" />
+      </g>
+      <rect y="650" width="1440" height="250" fill="url(#seaFade)" />
+    </svg>
+  </div>
+);
+
+const HeroShip = () => (
+  <svg className="w-full h-auto" viewBox="0 0 560 260" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    {/* Porte-conteneurs */}
+    <g>
+      {/* conteneurs */}
+      {[0,1,2].map(r => [0,1,2,3,4,5,6,7,8].map(c => (
+        <rect key={`${r}-${c}`} x={70 + c*34} y={112 - r*22} width="31" height="20" rx="1.5"
+          fill={(r + c) % 4 === 0 ? "#EA580C" : (r + c) % 3 === 0 ? "#1e5a86" : "#0c2a4a"}
+          opacity={(r + c) % 4 === 0 ? 0.75 : 0.55} />
+      )))}
+      {/* passerelle */}
+      <rect x="392" y="70" width="56" height="62" fill="#0c2a4a" opacity="0.7" />
+      <rect x="386" y="58" width="68" height="14" fill="#0c2a4a" opacity="0.8" />
+      <rect x="402" y="44" width="10" height="14" fill="#0c2a4a" opacity="0.7" />
+      <rect x="398" y="62" width="48" height="5" fill="#fff" opacity="0.55" />
+      {/* cheminée */}
+      <rect x="426" y="34" width="14" height="26" fill="#EA580C" opacity="0.8" />
+      {/* coque */}
+      <path d="M40 134 H500 L472 176 H78 Z" fill="#0c2a4a" opacity="0.85" />
+      <path d="M78 176 H472 L468 182 H84 Z" fill="#EA580C" opacity="0.7" />
+    </g>
+    {/* mer */}
+    <g stroke="#1e5a86" strokeWidth="2" strokeLinecap="round" fill="none">
+      <path d="M0 200 C 60 188, 120 212, 180 200 S 300 188, 360 200 S 480 212, 560 198" opacity="0.5" />
+      <path d="M0 226 C 70 214, 130 238, 200 226 S 330 214, 400 226 S 500 238, 560 224" opacity="0.35" />
+      <path d="M0 250 C 80 240, 140 260, 220 250 S 350 240, 420 250 S 520 260, 560 248" opacity="0.22" />
+    </g>
+  </svg>
+);
 
 function App() {
   const [activeTab, setActiveTab] = useState('accueil');
@@ -755,6 +840,7 @@ function App() {
 
   return (
     <div className="min-h-screen flex flex-col text-stone-800 font-sans antialiased selection:bg-orange-500 selection:text-white">
+      <MaritimeBackground />
       
       {/* Toast Notification */}
       {toast && (
@@ -838,6 +924,62 @@ function App() {
         </div>
       )}
 
+      {/* MODALE AJOUT / MODIFICATION MEMBRE DU BUREAU */}
+      {showAddMemberModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={closeAddMemberModal}>
+          <div className="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-7 space-y-5 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={closeAddMemberModal} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"><X className="w-5 h-5" /></button>
+            <div><h3 className="font-serif text-xl font-bold text-stone-900">{editingMemberId !== null ? 'Modifier le membre' : 'Ajouter un membre'}</h3><p className="text-xs text-stone-500 mt-1">Renseignez les informations du membre du bureau.</p></div>
+            <div className="grid sm:grid-cols-2 gap-3">
+              <input value={newMemberForm.name} onChange={e => setNewMemberForm(f => ({...f,name:e.target.value}))} placeholder="Nom complet *" className="px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              <input value={newMemberForm.role} onChange={e => setNewMemberForm(f => ({...f,role:e.target.value}))} placeholder="Fonction / rôle *" className="px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              <input value={newMemberForm.matricule} onChange={e => setNewMemberForm(f => ({...f,matricule:e.target.value}))} placeholder="Matricule *" className="px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+              <input type="password" value={newMemberForm.pin} onChange={e => setNewMemberForm(f => ({...f,pin:e.target.value}))} placeholder={editingMemberId !== null ? 'Nouveau PIN (facultatif)' : 'Code PIN *'} className="px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+            </div>
+            <textarea value={newMemberForm.bio} onChange={e => setNewMemberForm(f => ({...f,bio:e.target.value}))} placeholder="Biographie" rows="3" className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+            <div className="space-y-2"><label className="text-xs font-semibold text-stone-600">Photo</label><input type="file" accept="image/*" onChange={handleMemberPhotoUpload} className="w-full text-xs" />{newMemberForm.image && <img src={newMemberForm.image} alt="Aperçu" className="w-20 h-20 rounded-2xl object-cover" />}</div>
+            <button onClick={handleSaveMember} disabled={isSavingMember} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingMember ? 'Enregistrement...' : editingMemberId !== null ? 'Enregistrer les modifications' : 'Ajouter le membre'}</button>
+          </div>
+        </div>
+      )}
+      {/* CONFIRMATION SUPPRESSION MEMBRE */}
+      {memberToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setMemberToDelete(null)}>
+          <div className="glass-card w-full max-w-sm rounded-3xl p-7 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/15 flex items-center justify-center"><Trash className="w-5 h-5 text-rose-600" /></div>
+            <div><h3 className="font-serif text-xl font-bold">Retirer ce membre ?</h3><p className="text-sm text-stone-600 mt-2">Vous êtes sur le point de retirer <strong>{memberToDelete.name}</strong> du bureau.</p></div>
+            <div className="flex gap-3"><button onClick={() => setMemberToDelete(null)} className="flex-1 py-3 rounded-2xl bg-white/70 border border-stone-200 font-semibold">Annuler</button><button onClick={() => handleDeleteMember(memberToDelete)} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold">Supprimer</button></div>
+          </div>
+        </div>
+      )}
+      {/* MODALE GENERIQUE AJOUT / MODIFICATION */}
+      {resourceModal.type && (() => {
+        const config = RESOURCE_CONFIGS[resourceModal.type];
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={closeResourceModal}>
+            <div className="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-7 space-y-5 relative" onClick={e => e.stopPropagation()}>
+              <button onClick={closeResourceModal} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"><X className="w-5 h-5" /></button>
+              <div><h3 className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
+              <div className="space-y-3">{config.fields.map(field => (
+                <div key={field.key} className="space-y-1.5"><label className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
+                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type="text" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
+                </div>
+              ))}</div>
+              <button onClick={handleSaveResource} disabled={isSavingResource} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingResource ? 'Enregistrement...' : resourceModal.editingId !== null ? 'Enregistrer les modifications' : 'Ajouter'}</button>
+            </div>
+          </div>
+        );
+      })()}
+      {/* CONFIRMATION SUPPRESSION RESSOURCE */}
+      {resourceToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setResourceToDelete(null)}>
+          <div className="glass-card w-full max-w-sm rounded-3xl p-7 space-y-5" onClick={e => e.stopPropagation()}>
+            <div className="w-11 h-11 rounded-2xl bg-rose-500/15 flex items-center justify-center"><Trash className="w-5 h-5 text-rose-600" /></div>
+            <div><h3 className="font-serif text-xl font-bold">Confirmer la suppression</h3><p className="text-sm text-stone-600 mt-2">Voulez-vous vraiment supprimer {RESOURCE_CONFIGS[resourceToDelete.type].label} ?</p></div>
+            <div className="flex gap-3"><button onClick={() => setResourceToDelete(null)} className="flex-1 py-3 rounded-2xl bg-white/70 border border-stone-200 font-semibold">Annuler</button><button onClick={handleDeleteResource} className="flex-1 py-3 rounded-2xl bg-rose-600 text-white font-semibold">Supprimer</button></div>
+          </div>
+        </div>
+      )}
       {/* Header Minimaliste */}
       <header className="sticky top-0 z-30 pt-4 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto glass-card rounded-3xl px-6 h-16 flex items-center justify-between">
@@ -880,6 +1022,16 @@ function App() {
         {activeTab === 'accueil' && (
           <div className="space-y-12">
             <div className="relative rounded-3xl overflow-hidden glass-card p-8 sm:p-14 border border-white/80">
+              {HERO_PHOTO ? (
+                <>
+                  <img src={HERO_PHOTO} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/20" />
+                </>
+              ) : (
+                <div className="hidden md:block absolute right-6 bottom-4 w-[46%] max-w-[520px] opacity-90 pointer-events-none">
+                  <HeroShip />
+                </div>
+              )}
               <div className="relative z-10 max-w-2xl space-y-6">
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/15 text-orange-700 border border-orange-500/30 text-xs font-semibold tracking-wide">
                   <Sparkles className="w-3.5 h-3.5 text-orange-600" /> ARSTM — Excellence Navale & Portuaire
@@ -1100,6 +1252,7 @@ function App() {
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 {events.map(ev => (
                   <div key={ev.id} className="glass-card p-6 rounded-3xl hover-scale space-y-3 relative">
+                    {isAdminLoggedIn && <div className="absolute top-4 right-4 flex gap-2"><button onClick={() => openEditResource('events', ev)} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'events',item:ev})} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
                     <span className="text-xs font-bold text-orange-600 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full inline-block">{ev.date}</span>
                     <h3 className="font-serif text-lg font-bold text-stone-900 pr-16">{ev.title}</h3>
                     <p className="text-stone-600 text-sm">{ev.description}</p>
@@ -1124,6 +1277,7 @@ function App() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
               {alumni.map(a => (
                 <div key={a.id} className="glass-card p-6 rounded-3xl hover-scale space-y-3 relative">
+                  {isAdminLoggedIn && <div className="absolute top-4 right-4 flex gap-2"><button onClick={() => openEditResource('alumni', a)} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'alumni',item:a})} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
                   <div className="flex justify-between items-start pr-16">
                     <h3 className="font-serif text-lg font-bold text-stone-900">{a.name}</h3>
                     <span className="text-xs font-bold text-orange-600 bg-orange-500/10 px-2.5 py-1 rounded-lg whitespace-nowrap">Promo {a.promo}</span>
@@ -1150,6 +1304,7 @@ function App() {
             <div className="grid sm:grid-cols-2 md:grid-cols-3 gap-6">
               {gallery.map(item => (
                 <div key={item.id} className="glass-card rounded-3xl overflow-hidden hover-scale group relative">
+                  {isAdminLoggedIn && <div className="absolute top-3 right-3 z-10 flex gap-2"><button onClick={() => openEditResource('gallery', item)} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'gallery',item})} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
                   <img src={item.image} alt={item.title} className="w-full h-52 object-cover transition duration-500 group-hover:scale-105" />
                   <div className="p-5">
                     <span className="text-[10px] font-bold uppercase tracking-wide text-orange-600">{item.category}</span>
