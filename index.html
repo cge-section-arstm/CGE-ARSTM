@@ -1047,6 +1047,11 @@ function App() {
                     <Key className="w-4 h-4" /> Connectez-vous pour voir les opportunités
                   </button>
                 )}
+                {!HERO_PHOTO && (
+                  <div className="md:hidden pt-2 -mx-2 pointer-events-none">
+                    <HeroShip />
+                  </div>
+                )}
               </div>
             </div>
 
