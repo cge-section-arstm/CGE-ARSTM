@@ -415,6 +415,19 @@ function App() {
   const [registry, setRegistry] = useState(initialRegistry);
   const [isSyncing, setIsSyncing] = useState(false);
   const [supabaseReady, setSupabaseReady] = useState(false);
+  const [syncError, setSyncError] = useState(null);
+
+  // Messages d'erreur Supabase lisibles (RLS, etc.)
+  const explainError = (error) => {
+    const msg = (error && error.message) || String(error);
+    if (error && (error.code === 'PGRST116' || /0 rows|no rows/i.test(msg))) {
+      return "Le serveur a refusé ou n'a trouvé aucune ligne à modifier (droits Supabase / RLS manquants ou élément absent de la base).";
+    }
+    if (error && (error.code === '42501' || /row-level security|permission denied/i.test(msg))) {
+      return "Droits insuffisants sur Supabase (Row Level Security). " + msg;
+    }
+    return msg;
+  };
 
   const mapMemberRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role, bio: row.bio, image: row.image });
   const mapRegistryRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role });
@@ -422,30 +435,42 @@ function App() {
   const RESOURCE_STATE = { jobs: [jobs, setJobs, initialJobs], events: [events, setEvents, initialEvents], alumni: [alumni, setAlumni, initialAlumni], gallery: [gallery, setGallery, initialGallery] };
 
   useEffect(() => {
-    if (!supabaseClient) return;
+    if (!supabaseClient) {
+      setSyncError("Connexion au serveur impossible (bibliothèque Supabase non chargée). Les modifications ne peuvent pas être enregistrées.");
+      return;
+    }
     (async () => {
       setIsSyncing(true);
+      const errors = [];
       try {
         const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
-        if (!mErr && memberRows) {
+        if (mErr) errors.push('bureau_members : ' + explainError(mErr));
+        else if (memberRows) {
           setSupabaseReady(true);
           setMembers(memberRows.length ? memberRows.map(mapMemberRow) : initialMembers);
         }
         const { data: regRows, error: rErr } = await supabaseClient.from('member_registry').select('*').order('id');
-        if (!rErr && regRows) {
+        if (rErr) errors.push('member_registry : ' + explainError(rErr));
+        else if (regRows) {
           setRegistry(regRows.length ? regRows.map(mapRegistryRow) : initialRegistry);
         }
         for (const type of Object.keys(RESOURCE_CONFIGS)) {
           const { table } = RESOURCE_CONFIGS[type];
           const { data: rows, error } = await supabaseClient.from(table).select('*').order('id');
-          if (!error && rows) {
+          if (error) errors.push(table + ' : ' + explainError(error));
+          else if (rows) {
             const setter = RESOURCE_STATE[type][1];
             setter(rows);
           }
         }
       } catch (e) {
         console.error('Supabase sync error:', e);
+        errors.push(String(e && e.message || e));
       } finally {
+        if (errors.length) {
+          console.error('Supabase load errors:', errors);
+          setSyncError("Lecture des données impossible, les données affichées sont celles par défaut. " + errors.join(' | '));
+        }
         setIsSyncing(false);
       }
     })();
@@ -602,15 +627,17 @@ function App() {
       const isBureauMember = members.some(m => m.id === resetModalMember.id && m.matricule === resetModalMember.matricule);
       
       if (isBureauMember) {
+        if (!supabaseClient) throw new Error("Serveur inaccessible");
+        const { data, error } = await supabaseClient.from('bureau_members').update({ pin_hash: pinHash }).eq('id', resetModalMember.id).select();
+        if (error) throw new Error(explainError(error));
+        if (!data || data.length === 0) throw new Error("Mise à jour refusée par le serveur (droits UPDATE manquants).");
         setMembers(prev => prev.map(m => m.id === resetModalMember.id ? { ...m, pinHash } : m));
-        if (supabaseClient) {
-          await supabaseClient.from('bureau_members').update({ pin_hash: pinHash }).eq('id', resetModalMember.id);
-        }
       } else {
+        if (!supabaseClient) throw new Error("Serveur inaccessible");
+        const { data, error } = await supabaseClient.from('member_registry').update({ pin_hash: pinHash }).eq('id', resetModalMember.id).select();
+        if (error) throw new Error(explainError(error));
+        if (!data || data.length === 0) throw new Error("Mise à jour refusée par le serveur (droits UPDATE manquants).");
         setRegistry(prev => prev.map(r => r.id === resetModalMember.id ? { ...r, pinHash } : r));
-        if (supabaseClient) {
-          await supabaseClient.from('member_registry').update({ pin_hash: pinHash }).eq('id', resetModalMember.id);
-        }
       }
 
       // Si le compte était verrouillé
@@ -665,6 +692,7 @@ function App() {
       return;
     }
 
+    if (!supabaseClient) { showToastMsg("Serveur inaccessible : modification non enregistrée. Rechargez la page."); return; }
     setIsSavingMember(true);
     try {
       if (isEditing) {
@@ -684,7 +712,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('bureau_members').update(memberData).eq('id', editingMemberId).select().single();
           if (error) {
-            showToastMsg("Impossible de modifier ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible de modifier ce membre sur le serveur : " + explainError(error));
             return;
           }
           setMembers(prev => prev.map(m => m.id === editingMemberId ? mapMemberRow(data) : m));
@@ -708,7 +736,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('bureau_members').insert(memberData).select().single();
           if (error) {
-            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + explainError(error));
             return;
           }
           setMembers(prev => [...prev, mapMemberRow(data)]);
@@ -725,10 +753,15 @@ function App() {
   };
 
   const handleDeleteMember = async (member) => {
-    if (supabaseClient) {
-      const { error } = await supabaseClient.from('bureau_members').delete().eq('id', member.id);
+    if (!supabaseClient) { showToastMsg("Serveur inaccessible : suppression non enregistrée."); return; }
+    {
+      const { data, error } = await supabaseClient.from('bureau_members').delete().eq('id', member.id).select();
       if (error) {
-        showToastMsg("Impossible de retirer ce membre sur le serveur : " + error.message);
+        showToastMsg("Impossible de retirer ce membre sur le serveur : " + explainError(error));
+        return;
+      }
+      if (!data || data.length === 0) {
+        showToastMsg("Suppression refusée par le serveur (droits DELETE manquants ou membre absent de la base). Rien n'a été supprimé.");
         return;
       }
     }
@@ -781,13 +814,14 @@ function App() {
     const payload = {};
     config.fields.forEach(f => { payload[f.key] = typeof resourceForm[f.key] === 'string' ? resourceForm[f.key].trim() : resourceForm[f.key]; });
 
+    if (!supabaseClient) { showToastMsg("Serveur inaccessible : modification non enregistrée. Rechargez la page."); return; }
     setIsSavingResource(true);
     try {
       if (editingId) {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).update(payload).eq('id', editingId).select().single();
           if (error) {
-            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + explainError(error));
             return;
           }
           setter(prev => prev.map(item => item.id === editingId ? data : item));
@@ -799,7 +833,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).insert(payload).select().single();
           if (error) {
-            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + explainError(error));
             return;
           }
           setter(prev => [...prev, data]);
@@ -820,10 +854,15 @@ function App() {
     const { type, item } = resourceToDelete;
     const config = RESOURCE_CONFIGS[type];
     const [, setter] = RESOURCE_STATE[type];
-    if (supabaseClient) {
-      const { error } = await supabaseClient.from(config.table).delete().eq('id', item.id);
+    if (!supabaseClient) { showToastMsg("Serveur inaccessible : suppression non enregistrée."); return; }
+    {
+      const { data, error } = await supabaseClient.from(config.table).delete().eq('id', item.id).select();
       if (error) {
-        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + error.message);
+        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + explainError(error));
+        return;
+      }
+      if (!data || data.length === 0) {
+        showToastMsg("Suppression refusée par le serveur (droits DELETE manquants ou élément absent de la base). Rien n'a été supprimé.");
         return;
       }
     }
@@ -842,6 +881,12 @@ function App() {
     <div className="min-h-screen flex flex-col text-stone-800 font-sans antialiased selection:bg-orange-500 selection:text-white">
       <MaritimeBackground />
       
+      {syncError && (
+        <div className="fixed top-0 left-0 right-0 z-[60] bg-red-600 text-white text-xs sm:text-sm font-semibold px-4 py-2 text-center" style={{paddingTop: 'calc(env(safe-area-inset-top, 0px) + 0.5rem)'}}>
+          ⚠ {syncError}
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 glass-card text-stone-900 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/60 animate-bounce">
