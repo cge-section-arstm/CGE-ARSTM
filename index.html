@@ -242,6 +242,7 @@ const RESOURCE_CONFIGS = {
       { key: 'title', label: "Titre de l'actualité", type: 'text', required: true },
       { key: 'date', label: 'Date (ex. 24 Septembre 2026)', type: 'text', required: true },
       { key: 'content', label: 'Contenu', type: 'textarea', required: true },
+      { key: 'likes', label: 'Nombre de mentions J’aime', type: 'number', required: false },
     ],
   },
   jobs: {
@@ -293,6 +294,10 @@ const RESOURCE_CONFIGS = {
   },
 };
 
+
+// ---------- Habillage maritime (vectoriel, sans image IA) ----------
+// Pour une vraie photo (port d'Abidjan, campus ARSTM, navire-école...), colle son URL ici.
+// Laisse vide "" pour garder l'illustration vectorielle.
 const HERO_PHOTO = "";
 
 const MaritimeBackground = () => (
@@ -308,8 +313,10 @@ const MaritimeBackground = () => (
         </linearGradient>
       </defs>
 
+      {/* Quadrillage de carte marine */}
       <rect width="1440" height="900" fill="url(#chartGrid)" />
 
+      {/* Rose des vents */}
       <g transform="translate(1210 190)" stroke="#0c2a4a" opacity="0.13">
         <circle r="140" strokeWidth="1.5" />
         <circle r="112" strokeWidth="1" strokeDasharray="2 6" />
@@ -321,14 +328,17 @@ const MaritimeBackground = () => (
         </g>
       </g>
 
+      {/* Route maritime en pointillés */}
       <path d="M-20 640 C 240 560, 420 700, 700 610 S 1150 520, 1460 590" stroke="#EA580C" strokeWidth="2" strokeDasharray="3 9" strokeLinecap="round" opacity="0.35" />
       <circle cx="700" cy="610" r="5" fill="#EA580C" opacity="0.45" />
 
+      {/* Sondes bathymétriques */}
       <g fill="#0c2a4a" opacity="0.22" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="500">
         <text x="120" y="720">12</text><text x="330" y="780">18</text><text x="560" y="740">24</text>
         <text x="880" y="790">31</text><text x="1090" y="730">27</text><text x="1300" y="800">42</text>
       </g>
 
+      {/* Courbes de niveau / houle */}
       <g stroke="#0c2a4a" strokeWidth="1.3" strokeLinecap="round">
         <path d="M0 760 C 180 730, 360 790, 540 760 S 900 730, 1080 765 S 1340 790, 1440 760" opacity="0.14" />
         <path d="M0 810 C 200 780, 380 840, 580 808 S 940 780, 1120 815 S 1360 838, 1440 808" opacity="0.11" />
@@ -341,20 +351,26 @@ const MaritimeBackground = () => (
 
 const HeroShip = () => (
   <svg className="w-full h-auto" viewBox="0 0 560 260" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    {/* Porte-conteneurs */}
     <g>
+      {/* conteneurs */}
       {[0,1,2].map(r => [0,1,2,3,4,5,6,7,8].map(c => (
         <rect key={`${r}-${c}`} x={70 + c*34} y={112 - r*22} width="31" height="20" rx="1.5"
           fill={(r + c) % 4 === 0 ? "#EA580C" : (r + c) % 3 === 0 ? "#1e5a86" : "#0c2a4a"}
           opacity={(r + c) % 4 === 0 ? 0.75 : 0.55} />
       )))}
+      {/* passerelle */}
       <rect x="392" y="70" width="56" height="62" fill="#0c2a4a" opacity="0.7" />
       <rect x="386" y="58" width="68" height="14" fill="#0c2a4a" opacity="0.8" />
       <rect x="402" y="44" width="10" height="14" fill="#0c2a4a" opacity="0.7" />
       <rect x="398" y="62" width="48" height="5" fill="#fff" opacity="0.55" />
+      {/* cheminée */}
       <rect x="426" y="34" width="14" height="26" fill="#EA580C" opacity="0.8" />
+      {/* coque */}
       <path d="M40 134 H500 L472 176 H78 Z" fill="#0c2a4a" opacity="0.85" />
       <path d="M78 176 H472 L468 182 H84 Z" fill="#EA580C" opacity="0.7" />
     </g>
+    {/* mer */}
     <g stroke="#1e5a86" strokeWidth="2" strokeLinecap="round" fill="none">
       <path d="M0 200 C 60 188, 120 212, 180 200 S 300 188, 360 200 S 480 212, 560 198" opacity="0.5" />
       <path d="M0 226 C 70 214, 130 238, 200 226 S 330 214, 400 226 S 500 238, 560 224" opacity="0.35" />
@@ -581,6 +597,7 @@ function App() {
     showToastMsg("Déconnexion réussie.");
   };
 
+  // --- Réinitialisation de mot de passe par l'administrateur ---
   const handleAdminResetPin = async () => {
     if (!resetModalMember) return;
     const newPin = newPinResetInput.trim();
@@ -593,6 +610,7 @@ function App() {
     try {
       const pinHash = await hashSecret(resetModalMember.matricule, newPin);
       
+      // Mise à jour si c'est un membre du bureau
       const isBureauMember = members.some(m => m.id === resetModalMember.id && m.matricule === resetModalMember.matricule);
       
       if (isBureauMember) {
@@ -607,6 +625,7 @@ function App() {
         }
       }
 
+      // Si le compte était verrouillé
       if (isLocked) setIsLocked(false);
 
       showToastMsg(`Mot de passe réinitialisé pour ${resetModalMember.name}.`);
@@ -833,6 +852,7 @@ function App() {
     showToastMsg(`${config.titleSingular} supprimé(e) avec succès.`);
   };
 
+  // Filtrage de la recherche admin
   const filteredRegistry = registry.filter(item => 
     item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) || 
     item.matricule.toLowerCase().includes(adminSearchQuery.toLowerCase())
@@ -842,6 +862,7 @@ function App() {
     <div className="min-h-screen flex flex-col text-stone-800 font-sans antialiased selection:bg-orange-500 selection:text-white">
       <MaritimeBackground />
       
+      {/* Toast Notification */}
       {toast && (
         <div className="fixed top-6 right-6 z-50 glass-card text-stone-900 px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 border border-white/60 animate-bounce">
           <CheckCircle className="text-orange-600 w-5 h-5 flex-shrink-0" />
@@ -849,7 +870,7 @@ function App() {
         </div>
       )}
 
-      {/* MODALE REINITIALISATION CODE PIN */}
+      {/* MODALE REINITIALISATION CODE PIN (ADMIN) */}
       {resetModalMember && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setResetModalMember(null)}>
           <div className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 relative" onClick={e => e.stopPropagation()}>
@@ -941,7 +962,6 @@ function App() {
           </div>
         </div>
       )}
-
       {/* CONFIRMATION SUPPRESSION MEMBRE */}
       {memberToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setMemberToDelete(null)}>
@@ -952,7 +972,6 @@ function App() {
           </div>
         </div>
       )}
-
       {/* MODALE GENERIQUE AJOUT / MODIFICATION */}
       {resourceModal.type && (() => {
         const config = RESOURCE_CONFIGS[resourceModal.type];
@@ -963,7 +982,7 @@ function App() {
               <div><h3 className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
               <div className="space-y-3">{config.fields.map(field => (
                 <div key={field.key} className="space-y-1.5"><label className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
-                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type="text" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
+                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type={field.type === 'number' ? 'number' : 'text'} value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
                 </div>
               ))}</div>
               <button onClick={handleSaveResource} disabled={isSavingResource} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingResource ? 'Enregistrement...' : resourceModal.editingId !== null ? 'Enregistrer les modifications' : 'Ajouter'}</button>
@@ -971,7 +990,6 @@ function App() {
           </div>
         );
       })()}
-
       {/* CONFIRMATION SUPPRESSION RESSOURCE */}
       {resourceToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={() => setResourceToDelete(null)}>
@@ -982,7 +1000,6 @@ function App() {
           </div>
         </div>
       )}
-
       {/* Header Minimaliste */}
       <header className="sticky top-0 z-30 pt-4 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto glass-card rounded-3xl px-6 h-16 flex items-center justify-between">
@@ -1058,9 +1075,9 @@ function App() {
               </div>
             </div>
 
-            {/* NEWS SECTION CORRIGÉE */}
+            {/* NEWS SECTION */}
             <div className="space-y-6">
-              <div className="flex flex-wrap items-center justify-between gap-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-serif text-2xl font-bold text-stone-900">Dernières Actualités</h3>
                 {isAdminLoggedIn && (
                   <button onClick={() => openAddResource('news')} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
@@ -1072,14 +1089,14 @@ function App() {
                 {news.map(item => (
                   <div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4 relative">
                     {isAdminLoggedIn && (
-                      <div className="absolute top-4 right-4 flex gap-2 z-10">
-                        <button onClick={() => openEditResource('news', item)} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setResourceToDelete({ type: 'news', item })} className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
+                      <div className="absolute top-3 right-3 z-10 flex gap-2">
+                        <button onClick={() => openEditResource('news', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setResourceToDelete({ type: 'news', item })} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
                       </div>
                     )}
-                    <div className="flex justify-between items-center text-xs font-semibold pr-20">
+                    <div className={`flex justify-between items-center text-xs font-semibold ${isAdminLoggedIn ? 'pr-20' : ''}`}>
                       <span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>
-                      <span className="flex items-center gap-1 text-rose-500 font-bold"><Heart className="w-4 h-4 fill-rose-500" /> {item.likes || 0}</span>
+                      <span className="flex items-center gap-1 text-rose-500 font-bold"><Heart className="w-4 h-4 fill-rose-500" /> {item.likes}</span>
                     </div>
                     <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
                     <p className="text-stone-600 text-sm leading-relaxed">{item.content}</p>
@@ -1090,7 +1107,7 @@ function App() {
           </div>
         )}
 
-        {/* ESPACE ADMIN DÉDIÉ */}
+        {/* ESPACE ADMIN DÉDIÉ (GESTION DES MEMBRES CONNECTÉS & REINITIALISATION) */}
         {activeTab === 'admin-space' && isAdminLoggedIn && (
           <div className="space-y-8">
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -1370,7 +1387,7 @@ function App() {
 
       </main>
 
-      {/* DOCK BAR */}
+      {/* BARRE EN BAS : APPLE LIQUID GLASS DOCK */}
       <div className="fixed bottom-6 inset-x-0 z-40 flex justify-center px-4 pointer-events-none">
         <nav
           ref={navRef}
