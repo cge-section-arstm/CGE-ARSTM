@@ -233,6 +233,18 @@ const initialRegistry = [
 ];
 
 const RESOURCE_CONFIGS = {
+  news: {
+    table: 'news',
+    label: 'cette actualité',
+    addLabel: 'Ajouter une actualité',
+    titleSingular: 'Actualité',
+    insertDefaults: { likes: 0 },
+    fields: [
+      { key: 'title', label: "Titre de l'actualité", type: 'text', required: true },
+      { key: 'date', label: 'Date (ex. 24 Septembre 2026)', type: 'text', required: true },
+      { key: 'content', label: 'Contenu', type: 'textarea', required: true },
+    ],
+  },
   jobs: {
     table: 'jobs',
     label: 'cette offre',
@@ -419,7 +431,7 @@ function App() {
   const mapMemberRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role, bio: row.bio, image: row.image });
   const mapRegistryRow = (row) => ({ id: row.id, matricule: row.matricule, pinHash: row.pin_hash, name: row.name, role: row.role });
 
-  const RESOURCE_STATE = { jobs: [jobs, setJobs, initialJobs], events: [events, setEvents, initialEvents], alumni: [alumni, setAlumni, initialAlumni], gallery: [gallery, setGallery, initialGallery] };
+  const RESOURCE_STATE = { news: [news, setNews, initialNews], jobs: [jobs, setJobs, initialJobs], events: [events, setEvents, initialEvents], alumni: [alumni, setAlumni, initialAlumni], gallery: [gallery, setGallery, initialGallery] };
 
   useEffect(() => {
     if (!supabaseClient) return;
@@ -801,7 +813,7 @@ function App() {
         showToastMsg(`${config.titleSingular} modifié(e) avec succès.`);
       } else {
         if (supabaseClient) {
-          const { data, error } = await supabaseClient.from(config.table).insert(payload).select().single();
+          const { data, error } = await supabaseClient.from(config.table).insert({ ...payload, ...(config.insertDefaults || {}) }).select().single();
           if (error) {
             showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + error.message);
             return;
@@ -810,7 +822,7 @@ function App() {
         } else {
           const [current] = RESOURCE_STATE[type];
           const newId = current.length ? Math.max(...current.map(i => i.id)) + 1 : 1;
-          setter(prev => [...prev, { id: newId, ...payload }]);
+          setter(prev => [...prev, { id: newId, ...payload, ...(config.insertDefaults || {}) }]);
         }
         showToastMsg(`${config.titleSingular} ajouté(e) avec succès.`);
       }
@@ -1065,13 +1077,27 @@ function App() {
 
             {/* NEWS SECTION */}
             <div className="space-y-6">
-              <h3 className="font-serif text-2xl font-bold text-stone-900">Dernières Actualités</h3>
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <h3 className="font-serif text-2xl font-bold text-stone-900">Dernières Actualités</h3>
+                {isAdminLoggedIn && (
+                  <button onClick={() => openAddResource('news')} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
+                    <Plus className="w-4 h-4" /> Ajouter une actualité
+                  </button>
+                )}
+              </div>
+              {news.length === 0 && <p className="text-stone-500 text-sm">Aucune actualité pour le moment.</p>}
               <div className="grid md:grid-cols-2 gap-6">
                 {news.map(item => (
-                  <div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4">
-                    <div className="flex justify-between items-center text-xs font-semibold">
+                  <div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4 relative">
+                    {isAdminLoggedIn && (
+                      <div className="absolute top-3 right-3 z-10 flex gap-2">
+                        <button onClick={() => openEditResource('news', item)} aria-label="Modifier l'actualité" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
+                        <button onClick={() => setResourceToDelete({ type: 'news', item })} aria-label="Supprimer l'actualité" className="w-9 h-9 rounded-full bg-white/80 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
+                      </div>
+                    )}
+                    <div className={`flex items-center text-xs font-semibold gap-3 ${isAdminLoggedIn ? 'pt-9' : 'justify-between'} ${isAdminLoggedIn ? '' : ''}`}>
                       <span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>
-                      <span className="flex items-center gap-1 text-rose-500 font-bold"><Heart className="w-4 h-4 fill-rose-500" /> {item.likes}</span>
+                      <span className="flex items-center gap-1 text-rose-500 font-bold ml-auto"><Heart className="w-4 h-4 fill-rose-500" /> {item.likes || 0}</span>
                     </div>
                     <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
                     <p className="text-stone-600 text-sm leading-relaxed">{item.content}</p>
