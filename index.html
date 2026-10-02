@@ -1092,6 +1092,11 @@ function App() {
   const handleMemberPhotoUpload = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToastMsg("La photo ne doit pas dépasser 10 Mo.", 'error');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => setNewMemberForm(f => ({ ...f, image: reader.result }));
     reader.readAsDataURL(file);
@@ -1224,6 +1229,11 @@ function App() {
   const handleResourceImageUpload = (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
+    if (file.size > 10 * 1024 * 1024) {
+      showToastMsg("L'image ne doit pas dépasser 10 Mo.", 'error');
+      e.target.value = '';
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => setResourceForm(f => ({ ...f, image: reader.result }));
     reader.readAsDataURL(file);
