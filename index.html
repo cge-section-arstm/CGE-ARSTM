@@ -135,6 +135,49 @@ const SITE_CREATORS = [
   { name: "KALOGA Mouhammad Islâm", section: "Mécanique Navale", promo: "38ᵉ promotion" },
 ];
 
+// ---------- Photos : réduction automatique avant envoi ----------
+// Une photo de téléphone (3 à 8 Mo) est redimensionnée à 900 px max et compressée en JPEG (~80-150 Ko).
+const compressImage = (file, maxSize = 900, quality = 0.82) => new Promise((resolve, reject) => {
+  if (!file || !file.type || !file.type.startsWith('image/')) { reject(new Error("Ce fichier n'est pas une image.")); return; }
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error("Lecture de l'image impossible."));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error("Format d'image non reconnu par le navigateur (essayez une photo JPG ou PNG)."));
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); // fond blanc pour les PNG transparents
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Traduit les erreurs Supabase en message compréhensible
+const explainDbError = (error) => {
+  if (!error) return '';
+  const msg = String(error.message || error);
+  const code = String(error.code || '');
+  if (code === 'PGRST204' || code === '42703' || /column .* (does not exist|of .* in the schema cache)/i.test(msg))
+    return "la base Supabase n'est pas à jour (colonne manquante). Lancez le script supabase_tout_cge_arstm.sql dans Supabase > SQL Editor. Détail : " + msg;
+  if (code === '23502') return "un champ obligatoire dans Supabase est vide. Relancez le script supabase_tout_cge_arstm.sql. Détail : " + msg;
+  if (code === '23505') return "ce matricule est déjà utilisé par une autre fiche. Détail : " + msg;
+  if (code === '42501' || /row-level security/i.test(msg)) return "Supabase refuse l'opération (droits RLS). Relancez le script supabase_tout_cge_arstm.sql. Détail : " + msg;
+  if (code === 'PGRST116') return "Supabase n'a pas renvoyé la fiche modifiée (droits de lecture/modification manquants). Relancez le script supabase_tout_cge_arstm.sql.";
+  if (code === '22001' || /Photo trop lourde/i.test(msg)) return msg;
+  if (/payload|too large|413|request entity/i.test(msg)) return "la photo est trop lourde. Choisissez une image plus petite.";
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return "connexion à Supabase impossible (réseau ou photo trop lourde). Vérifiez votre connexion et réessayez.";
+  return msg;
+};
+
+const SITE_VERSION = 'evo35';
+
 const SITE_SALT = "cge-arstm-2026";
 const MAX_LOGIN_ATTEMPTS = 5;
 const PRESIDENT_MATRICULE = "ARSTM-CGE-0042";
@@ -527,6 +570,8 @@ function App() {
 
   // Data Stores
   const [members, setMembers] = useState(initialMembers);
+  // null = pas encore chargé ; 'ok' = données Supabase ; sinon texte de l'erreur
+  const [bureauSync, setBureauSync] = useState(null);
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState(initialJobs);
   const [alumni, setAlumni] = useState(initialAlumni);
@@ -551,8 +596,10 @@ function App() {
     (async () => {
       setIsSyncing(true);
       try {
-        const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
+        const { data: memberRows, error: mErr } = await fetchBureauRows();
+        if (mErr) { console.error('Chargement du bureau :', mErr.message); setBureauSync(explainDbError(mErr)); }
         if (!mErr && memberRows) {
+          setBureauSync('ok');
           setSupabaseReady(true);
           setMembers(memberRows.map(mapMemberRow));
         }
@@ -1084,17 +1131,55 @@ function App() {
   };
 
   const openEditMemberModal = (m) => {
+    setPhotoStatus('');
     setEditingMemberId(m.id);
     setNewMemberForm({ name: m.name, role: m.role, department: m.department || 'presidence', position: m.position || 'adjoint', matricule: m.matricule || '', bio: m.bio || '', pin: '', image: m.image || '' });
     setShowAddMemberModal(true);
   };
 
-  const handleMemberPhotoUpload = (e) => {
+  const [photoStatus, setPhotoStatus] = useState('');
+  const handleMemberPhotoUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
+    e.target.value = ''; // permet de re-choisir la même photo
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setNewMemberForm(f => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+    setPhotoStatus(`Préparation de la photo (${Math.round(file.size / 1024)} Ko)…`);
+    try {
+      const dataUrl = await compressImage(file);
+      const ko = Math.round(dataUrl.length * 0.75 / 1024);
+      setNewMemberForm(f => ({ ...f, image: dataUrl }));
+      setPhotoStatus(`Photo prête (${ko} Ko). Cliquez maintenant sur « Enregistrer ».`);
+    } catch (err) {
+      console.error('Photo :', err);
+      setPhotoStatus('');
+      const heic = /heic|heif/i.test(file.type || file.name || '');
+      showToastMsg("Photo refusée : " + (heic ? "format HEIC (iPhone) non lisible par ce navigateur. Envoyez la photo en JPG ou faites une capture d'écran de la photo." : err.message), 'error');
+    }
+  };
+
+  // Lecture du bureau. Si Supabase est trop lent (photos très lourdes : « statement timeout »),
+  // on charge d'abord les fiches SANS les photos, puis chaque photo séparément.
+  const fetchBureauRows = async () => {
+    const full = await supabaseClient.from('bureau_members').select('*').order('id');
+    const isTimeout = full.error && (full.error.code === '57014' || /statement timeout/i.test(full.error.message || ''));
+    if (!isTimeout) return full;
+    console.warn('Bureau : lecture lente, chargement des photos une par une.');
+    const light = await supabaseClient.from('bureau_members').select('id, matricule, pin_hash, name, role, department, position, bio').order('id');
+    if (light.error) return light;
+    const rows = await Promise.all((light.data || []).map(async row => {
+      const { data: one, error } = await supabaseClient.from('bureau_members').select('image').eq('id', row.id).maybeSingle();
+      return { ...row, image: (!error && one) ? one.image : null };
+    }));
+    return { data: rows, error: null };
+  };
+
+  // Recharge la liste du bureau depuis Supabase (utile si la page affiche des fiches périmées)
+  const reloadMembersFromServer = async () => {
+    if (!supabaseClient) return false;
+    const { data, error } = await fetchBureauRows();
+    if (error || !data) { setBureauSync(explainDbError(error) || 'réponse vide'); return false; }
+    setMembers(data.map(mapMemberRow));
+    setBureauSync('ok');
+    return true;
   };
 
   const handleSaveMember = async () => {
@@ -1133,9 +1218,23 @@ function App() {
         }
 
         if (supabaseClient) {
-          const { data, error } = await supabaseClient.from('bureau_members').update(memberData).eq('id', editingMemberId).select().single();
+          const { data: updatedRows, error } = await supabaseClient.from('bureau_members').update(memberData).eq('id', editingMemberId).select();
+          const data = updatedRows && updatedRows[0];
           if (error) {
-            showToastMsg("Impossible de modifier ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible de modifier ce membre sur le serveur : " + explainDbError(error), 'error');
+            return;
+          }
+          if (!data) {
+            // Aucune ligne modifiée : la fiche existe-t-elle encore côté serveur ?
+            const { data: still } = await supabaseClient.from('bureau_members').select('id').eq('id', editingMemberId);
+            if (!still || still.length === 0) {
+              const ok = await reloadMembersFromServer();
+              closeAddMemberModal();
+              if (ok) showToastMsg("Cette fiche avait été remplacée dans Supabase (la page affichait d'anciennes données). La liste vient d'être rechargée : rouvrez la fiche et recommencez.", 'error');
+              else showToastMsg("La page n'arrive pas à lire la liste du bureau dans Supabase : elle affiche les fiches de secours du fichier. Voir l'encadré rouge en haut de la page Membres.", 'error');
+            } else {
+              showToastMsg("Supabase a refusé la modification (règles d'accès RLS). Relancez la dernière version du script supabase_tout_cge_arstm.sql.", 'error');
+            }
             return;
           }
           setMembers(prev => prev.map(m => m.id === editingMemberId ? mapMemberRow(data) : m));
@@ -1148,7 +1247,8 @@ function App() {
           const before = members.find(m => m.id === editingMemberId);
           logActivity('Modification', 'Membres du bureau', `${memberData.name} — ${describeChanges([{key:'name',label:'Nom'},{key:'role',label:'Poste'},{key:'department',label:'Département'},{key:'position',label:'Chef/Adjoint'},{key:'matricule',label:'Matricule'},{key:'bio',label:'Bio'},{key:'image',label:'Photo',type:'image'}], before, memberData)}${newPinHash ? ' ; code PIN changé' : ''}`);
         }
-        showToastMsg(`${memberData.name} a été modifié(e) avec succès.`);
+        setPhotoStatus('');
+        showToastMsg(`${memberData.name} a été modifié(e) avec succès.`, 'success');
       } else {
         const pinHash = (pin.trim() && matricule.trim()) ? await hashSecret(matricule.trim(), pin.trim()) : null;
         const memberData = {
@@ -1165,7 +1265,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('bureau_members').insert(memberData).select().single();
           if (error) {
-            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + explainDbError(error), 'error');
             return;
           }
           setMembers(prev => [...prev, mapMemberRow(data)]);
@@ -1186,7 +1286,7 @@ function App() {
     if (supabaseClient) {
       const { data: deletedRows, error } = await supabaseClient.from('bureau_members').delete().eq('id', member.id).select('id');
       if (error) {
-        showToastMsg("Impossible de retirer ce membre sur le serveur : " + error.message);
+        showToastMsg("Impossible de retirer ce membre sur le serveur : " + explainDbError(error), 'error');
         return;
       }
       if (!deletedRows || deletedRows.length === 0) {
@@ -1221,12 +1321,15 @@ function App() {
     setResourceForm({});
   };
 
-  const handleResourceImageUpload = (e) => {
+  const handleResourceImageUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setResourceForm(f => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await compressImage(file);
+      setResourceForm(f => ({ ...f, image: dataUrl }));
+    } catch (err) {
+      showToastMsg("Photo refusée : " + err.message, 'error');
+    }
   };
 
   const handleSaveResource = async () => {
@@ -1258,7 +1361,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).update(payload).eq('id', editingId).select().single();
           if (error) {
-            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + explainDbError(error), 'error');
             return;
           }
           setter(prev => prev.map(item => item.id === editingId ? data : item));
@@ -1275,7 +1378,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).insert(payload).select().single();
           if (error) {
-            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + explainDbError(error), 'error');
             return;
           }
           setter(prev => [...prev, data]);
@@ -1301,7 +1404,7 @@ function App() {
     if (supabaseClient) {
       const { data: deletedRows, error } = await supabaseClient.from(config.table).delete().eq('id', item.id).select('id');
       if (error) {
-        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + error.message);
+        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + explainDbError(error), 'error');
         return;
       }
       if (!deletedRows || deletedRows.length === 0) {
@@ -1567,8 +1670,9 @@ function App() {
             </div>
             <p className="text-[11px] text-stone-500 -mt-2">Le membre se connecte normalement avec son matricule de l'annuaire. Le code PIN ici est facultatif.</p>
             <textarea value={newMemberForm.bio} onChange={e => setNewMemberForm(f => ({...f,bio:e.target.value}))} placeholder="Biographie" rows="3" className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
-            <div className="space-y-2"><label className="text-xs font-semibold text-stone-600">Photo</label><input type="file" accept="image/*" onChange={handleMemberPhotoUpload} className="w-full text-xs" />{newMemberForm.image && <img src={newMemberForm.image} alt="Aperçu" className="w-20 h-20 rounded-2xl object-cover" />}</div>
+            <div className="space-y-2"><label className="text-xs font-semibold text-stone-600">Photo</label><input type="file" accept="image/*" onChange={handleMemberPhotoUpload} className="w-full text-xs" />{photoStatus && <p className="text-xs font-semibold text-emerald-700">{photoStatus}</p>}{newMemberForm.image && <div className="flex items-center gap-3"><img src={newMemberForm.image} alt="Aperçu" className="w-20 h-20 rounded-2xl object-cover" /><button type="button" onClick={() => { setNewMemberForm(f => ({ ...f, image: '' })); setPhotoStatus(''); }} className="text-xs text-rose-600 underline">Retirer la photo</button></div>}</div>
             <button onClick={handleSaveMember} disabled={isSavingMember} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingMember ? 'Enregistrement...' : editingMemberId !== null ? 'Enregistrer les modifications' : 'Ajouter le membre'}</button>
+            <p className="text-[10px] text-stone-400 text-center">Version du site : {SITE_VERSION}</p>
           </div>
         </div>
       )}
@@ -1835,6 +1939,16 @@ function App() {
         {/* BUREAU / MEMBRES VIEW */}
         {activeTab === 'bureau' && (
           <div className="space-y-8">
+            {isAdminLoggedIn && supabaseClient && bureauSync && bureauSync !== 'ok' && (
+              <div role="alert" className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div className="text-sm space-y-1">
+                  <p className="font-bold">Les fiches affichées ne viennent pas de Supabase (fiches de secours du fichier) : les modifications ne peuvent pas être enregistrées.</p>
+                  <p>Cause : {bureauSync}</p>
+                  <button onClick={reloadMembersFromServer} className="mt-1 px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold">Réessayer le chargement</button>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="font-serif text-3xl font-bold text-stone-900">Bureau Exécutif</h2>
