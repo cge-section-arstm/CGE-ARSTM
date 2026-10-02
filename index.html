@@ -89,6 +89,7 @@ const Icon = ({ children, className = "w-5 h-5" }) => (
 );
 const History = (p) => <Icon {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" /><path d="M3.5 4v4h4" /><path d="M12 7.5V12l3 2" /></Icon>;
 const ScrollText = (p) => <Icon {...p}><path d="M8 3.5h9.5A2.5 2.5 0 0 1 20 6v12.5a2 2 0 0 1-2 2H8" /><path d="M8 3.5A2.5 2.5 0 0 0 5.5 6v12.5a2 2 0 0 0 2 2" /><path d="M10 8.5h6M10 12h6M10 15.5h4" /></Icon>;
+const LinkIcon = (p) => <Icon {...p}><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" /><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" /></Icon>;
 const Home = (p) => <Icon {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /><path d="M9.5 20v-6h5v6" /></Icon>;
 const Users = (p) => <Icon {...p}><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" /><circle cx="17" cy="9" r="2.6" /><path d="M15.5 14c2.8.4 4.5 2.4 4.5 5.5" /></Icon>;
 const Briefcase = (p) => <Icon {...p}><rect x="3" y="7.5" width="18" height="12" rx="2" /><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5" /><path d="M3 12.5h18" /></Icon>;
@@ -154,8 +155,8 @@ const initialMembers = [
 ];
 
 const initialNews = [
-  { id: 1, title: "Lancement du Portail Numérique & Annuaire CGE", date: "24 Septembre 2026", likes: 42, content: "Inauguration officielle du nouveau portail interactif réunissant l'ensemble des étudiants et diplômés des Grandes Écoles de l'ARSTM." },
-  { id: 2, title: "Conférence Internationale sur la Sûreté Maritime", date: "15 Octobre 2026", likes: 28, content: "Un rassemblement majeur d'experts et d'officiers pour débattre des nouveaux enjeux de cyber-sécurité et de logistique intégrée." }
+  { id: 1, title: "Lancement du Portail Numérique & Annuaire CGE", date: "24 Septembre 2026", content: "Inauguration officielle du nouveau portail interactif réunissant l'ensemble des étudiants et diplômés des Grandes Écoles de l'ARSTM." },
+  { id: 2, title: "Conférence Internationale sur la Sûreté Maritime", date: "15 Octobre 2026", content: "Un rassemblement majeur d'experts et d'officiers pour débattre des nouveaux enjeux de cyber-sécurité et de logistique intégrée." }
 ];
 
 const initialJobs = [
@@ -251,8 +252,9 @@ const RESOURCE_CONFIGS = {
     fields: [
       { key: 'title', label: "Titre de l'actualité", type: 'text', required: true },
       { key: 'date', label: 'Date (ex. 24 Septembre 2026)', type: 'text', required: true },
-      { key: 'content', label: 'Contenu', type: 'textarea', required: true },
-      { key: 'likes', label: 'Nombre de mentions J’aime', type: 'number', required: false },
+      { key: 'content', label: 'Contenu (les adresses web écrites ici deviennent cliquables)', type: 'textarea', required: true },
+      { key: 'link', label: 'Lien à partager (ex. https://...)', type: 'url', required: false },
+      { key: 'link_label', label: 'Texte du bouton (facultatif, ex. Lire l’article, Voir la vidéo)', type: 'text', required: false },
     ],
   },
   jobs: {
@@ -275,7 +277,9 @@ const RESOURCE_CONFIGS = {
     fields: [
       { key: 'title', label: "Titre de l'événement", type: 'text', required: true },
       { key: 'date', label: 'Date (ex. 15 Octobre 2026)', type: 'text', required: true },
-      { key: 'description', label: 'Description', type: 'textarea', required: false },
+      { key: 'description', label: 'Description (les adresses web écrites ici deviennent cliquables)', type: 'textarea', required: false },
+      { key: 'link', label: 'Lien à partager (ex. https://forms.gle/...)', type: 'url', required: false },
+      { key: 'link_label', label: 'Texte du bouton (facultatif, ex. S’inscrire, Voir la vidéo)', type: 'text', required: false },
     ],
   },
   alumni: {
@@ -301,6 +305,7 @@ const RESOURCE_CONFIGS = {
       { key: 'image', label: 'Photo', type: 'image', required: false },
       { key: 'name', label: 'Nom et prénoms', type: 'text', required: true },
       { key: 'section', label: 'Section (ex. Électromécanique, Logistique...)', type: 'text', required: true },
+      { key: 'promo', label: 'Promotion (ex. 2024 ou 2022-2025)', type: 'text', required: true },
       { key: 'status', label: 'Statut', type: 'select', options: ['Membre actuel', 'Ancien membre'], required: true },
       { key: 'poste', label: 'Poste actuel (facultatif)', type: 'text', required: false },
     ],
@@ -429,6 +434,10 @@ function App() {
   const [logFilterActor, setLogFilterActor] = useState('Tous');
   const [logFilterAction, setLogFilterAction] = useState('Toutes');
   const actorRef = useRef(null);
+  // « J'aime » : une ligne par (actualité, membre). Identité stockée sous forme chiffrée.
+  const [newsLikes, setNewsLikes] = useState([]);
+  const [myLikeKey, setMyLikeKey] = useState(null);
+  const [pendingLikes, setPendingLikes] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberMatriculeInput, setMemberMatriculeInput] = useState('');
@@ -475,6 +484,7 @@ function App() {
   const [contacts, setContacts] = useState(initialContacts);
   const [registreFilter, setRegistreFilter] = useState('Tous');
   const [registreSearch, setRegistreSearch] = useState('');
+  const [registrePromo, setRegistrePromo] = useState('Toutes');
   const [registry, setRegistry] = useState(initialRegistry);
   const [isSyncing, setIsSyncing] = useState(false);
   const [supabaseReady, setSupabaseReady] = useState(false);
@@ -518,6 +528,59 @@ function App() {
   const isUserAuthenticated = currentUser !== null || isAdminLoggedIn;
   // Droits de modification : admin = tout ; secrétariat = Contact, Médiathèque, Registre.
   const canEdit = (type) => isAdminLoggedIn || (isSecretariatLoggedIn && SECRETARIAT_EDITABLE.includes(type));
+
+  // ---------- Système de « J'aime » (réservé aux personnes connectées) ----------
+  useEffect(() => {
+    if (!supabaseClient) return;
+    (async () => {
+      const { data, error } = await supabaseClient.from('news_likes').select('news_id, user_key');
+      if (!error && data) setNewsLikes(data);
+      else if (error) console.error('Chargement des J’aime :', error.message);
+    })();
+  }, []);
+
+  useEffect(() => {
+    const identity = currentUser && (currentUser.matricule || currentUser.name);
+    if (!identity) { setMyLikeKey(null); return; }
+    let cancelled = false;
+    hashSecret('like', String(identity).toLowerCase()).then(k => { if (!cancelled) setMyLikeKey(k); });
+    return () => { cancelled = true; };
+  }, [currentUser]);
+
+  const likeCount = (newsId) => newsLikes.filter(l => String(l.news_id) === String(newsId)).length;
+  const hasLiked = (newsId) => !!myLikeKey && newsLikes.some(l => String(l.news_id) === String(newsId) && l.user_key === myLikeKey);
+
+  const toggleLike = async (item) => {
+    if (!isUserAuthenticated) {
+      showToastMsg("Connectez-vous à votre espace membre pour aimer une actualité.", 'error');
+      setShowMemberModal(true);
+      return;
+    }
+    if (!myLikeKey || pendingLikes[item.id]) return;
+    const liked = hasLiked(item.id);
+    const row = { news_id: item.id, user_key: myLikeKey };
+    setPendingLikes(p => ({ ...p, [item.id]: true }));
+    // mise à jour immédiate à l'écran
+    setNewsLikes(prev => liked
+      ? prev.filter(l => !(String(l.news_id) === String(item.id) && l.user_key === myLikeKey))
+      : [...prev, row]);
+    try {
+      if (supabaseClient) {
+        const { error } = liked
+          ? await supabaseClient.from('news_likes').delete().eq('news_id', item.id).eq('user_key', myLikeKey)
+          : await supabaseClient.from('news_likes').insert(row);
+        // 23505 = déjà aimé (doublon) : l'état affiché est déjà le bon
+        if (error && error.code !== '23505') {
+          setNewsLikes(prev => liked
+            ? [...prev, row]
+            : prev.filter(l => !(String(l.news_id) === String(item.id) && l.user_key === myLikeKey)));
+          showToastMsg("Impossible d'enregistrer votre J'aime : " + error.message, 'error');
+        }
+      }
+    } finally {
+      setPendingLikes(p => { const n = { ...p }; delete n[item.id]; return n; });
+    }
+  };
 
   // ---------- Historique (journal d'activité) ----------
   // Enregistre une ligne : qui, quand, quoi. Aucune fonction ne permet de modifier ou supprimer une ligne.
@@ -622,14 +685,36 @@ function App() {
     'Membre actuel': registre.filter(p => p.status === 'Membre actuel').length,
     'Ancien membre': registre.filter(p => p.status === 'Ancien membre').length,
   };
+  const registrePromos = Array.from(new Set(registre.map(p => String(p.promo || '').trim()).filter(Boolean)))
+    .sort((a, b) => b.localeCompare(a, 'fr', { numeric: true }));
   const filteredRegistre = registre
     .filter(p => registreFilter === 'Tous' || p.status === registreFilter)
+    .filter(p => registrePromo === 'Toutes' || String(p.promo || '').trim() === registrePromo)
     .filter(p => {
       const q = registreSearch.trim().toLowerCase();
       if (!q) return true;
-      return [p.name, p.section, p.poste].some(v => String(v || '').toLowerCase().includes(q));
+      return [p.name, p.section, p.promo, p.poste].some(v => String(v || '').toLowerCase().includes(q));
     })
     .sort((a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'fr'));
+
+  // Liens : accepte seulement http(s) ; ajoute https:// si oublié.
+  const normalizeUrl = (value) => {
+    const v = String(value || '').trim();
+    if (!v) return '';
+    const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(v) ? v : `https://${v}`;
+    try {
+      const u = new URL(withScheme);
+      return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+    } catch { return null; }
+  };
+  const URL_IN_TEXT = /((?:https?:\/\/|www\.)[^\s<]+[^\s<.,;:!?)\]'"»])/gi;
+  const renderWithLinks = (text) => String(text || '').split(URL_IN_TEXT).map((part, i) => {
+    if (i % 2 === 1) {
+      const href = normalizeUrl(part);
+      if (href) return <a key={i} href={href} target="_blank" rel="noopener noreferrer" className="text-orange-600 font-semibold underline underline-offset-2 break-all hover:text-orange-700">{part}</a>;
+    }
+    return <React.Fragment key={i}>{part}</React.Fragment>;
+  });
 
   const contactHref = (value) => {
     const v = String(value || '').trim();
@@ -1068,6 +1153,13 @@ function App() {
 
     const payload = {};
     config.fields.forEach(f => { payload[f.key] = typeof resourceForm[f.key] === 'string' ? resourceForm[f.key].trim() : resourceForm[f.key]; });
+    for (const f of config.fields) {
+      if (f.type === 'url' && payload[f.key]) {
+        const clean = normalizeUrl(payload[f.key]);
+        if (!clean) { showToastMsg(`Le lien « ${payload[f.key]} » n'est pas valide. Exemple : https://www.exemple.com`, 'error'); return; }
+        payload[f.key] = clean;
+      }
+    }
 
     setIsSavingResource(true);
     try {
@@ -1332,7 +1424,7 @@ function App() {
               <div><h3 className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
               <div className="space-y-3">{config.fields.map(field => (
                 <div key={field.key} className="space-y-1.5"><label className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
-                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'select' ? <select value={resourceForm[field.key] || field.options[0]} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">{field.options.map(o => <option key={o} value={o}>{o}</option>)}</select> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type={field.type === 'number' ? 'number' : 'text'} value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
+                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'select' ? <select value={resourceForm[field.key] || field.options[0]} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">{field.options.map(o => <option key={o} value={o}>{o}</option>)}</select> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'} placeholder={field.type === 'url' ? 'https://' : undefined} value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
                 </div>
               ))}</div>
               <button onClick={handleSaveResource} disabled={isSavingResource} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingResource ? 'Enregistrement...' : resourceModal.editingId !== null ? 'Enregistrer les modifications' : 'Ajouter'}</button>
@@ -1446,10 +1538,32 @@ function App() {
                     )}
                     <div className={`flex justify-between items-center text-xs font-semibold ${isAdminLoggedIn ? 'pr-20' : ''}`}>
                       <span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>
-                      <span className="flex items-center gap-1 text-rose-500 font-bold"><Heart className="w-4 h-4 fill-rose-500" /> {item.likes}</span>
+                      {(() => {
+                        const liked = hasLiked(item.id);
+                        const count = likeCount(item.id);
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => toggleLike(item)}
+                            disabled={!!pendingLikes[item.id]}
+                            aria-pressed={liked}
+                            aria-label={liked ? "Je n'aime plus" : "J'aime"}
+                            title={isUserAuthenticated ? (liked ? "Retirer mon J'aime" : "J'aime") : "Connectez-vous pour aimer"}
+                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-bold transition duration-200 disabled:opacity-60 ${liked ? 'bg-rose-500 text-white border-rose-500' : 'bg-white/70 text-rose-500 border-rose-200 hover:bg-rose-50'}`}
+                          >
+                            <Heart className={`w-4 h-4 ${liked ? 'fill-white' : ''}`} /> {count}
+                          </button>
+                        );
+                      })()}
                     </div>
                     <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
-                    <p className="text-stone-600 text-sm leading-relaxed">{item.content}</p>
+                    <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(item.content)}</p>
+                    {item.link && normalizeUrl(item.link) && (
+                      <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 max-w-full">
+                        <LinkIcon className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{item.link_label || 'Ouvrir le lien'}</span>
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1643,7 +1757,13 @@ function App() {
                     {isAdminLoggedIn && <div className="absolute top-4 right-4 flex gap-2"><button onClick={() => openEditResource('events', ev)} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'events',item:ev})} className="w-9 h-9 rounded-full bg-white/80 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
                     <span className="text-xs font-bold text-orange-600 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full inline-block">{ev.date}</span>
                     <h3 className="font-serif text-lg font-bold text-stone-900 pr-16">{ev.title}</h3>
-                    <p className="text-stone-600 text-sm">{ev.description}</p>
+                    {ev.description && <p className="text-stone-600 text-sm whitespace-pre-line break-words">{renderWithLinks(ev.description)}</p>}
+                    {ev.link && normalizeUrl(ev.link) && (
+                      <a href={normalizeUrl(ev.link)} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 max-w-full">
+                        <LinkIcon className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">{ev.link_label || 'Ouvrir le lien'}</span>
+                      </a>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1679,15 +1799,26 @@ function App() {
                     </button>
                   ))}
                 </div>
+                <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+                <select
+                  value={registrePromo}
+                  onChange={(e) => setRegistrePromo(e.target.value)}
+                  aria-label="Filtrer par promotion"
+                  className="px-4 py-2 rounded-2xl bg-white/70 border border-stone-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
+                >
+                  <option value="Toutes">Toutes les promotions</option>
+                  {registrePromos.map(pr => <option key={pr} value={pr}>Promotion {pr}</option>)}
+                </select>
                 <div className="relative w-full sm:w-64">
                   <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-400" />
                   <input
                     type="text"
-                    placeholder="Nom, section, poste..."
+                    placeholder="Nom, section, promotion, poste..."
                     value={registreSearch}
                     onChange={(e) => setRegistreSearch(e.target.value)}
                     className="w-full pl-10 pr-4 py-2 rounded-2xl bg-white/70 border border-stone-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500"
                   />
+                </div>
                 </div>
               </div>
 
@@ -1726,6 +1857,7 @@ function App() {
                         </span>
                         <h3 className="font-serif text-lg font-bold text-stone-900">{p.name}</h3>
                         <p className="text-sm text-stone-600"><span className="font-semibold">Section :</span> {p.section}</p>
+                        {p.promo && <p className="text-sm text-stone-600"><span className="font-semibold">Promotion :</span> {p.promo}</p>}
                         {p.poste && <p className="text-sm text-stone-600 flex items-center gap-2"><Building className="w-4 h-4 text-orange-600 flex-shrink-0" /> {p.poste}</p>}
                       </div>
                     </div>
