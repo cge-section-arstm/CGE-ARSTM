@@ -398,6 +398,10 @@ function App() {
   // Espace Admin / Gestion des membres inscrits
   const [adminSearchQuery, setAdminSearchQuery] = useState('');
   const [resetModalMember, setResetModalMember] = useState(null);
+  const [showChangePwd, setShowChangePwd] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ current: '', next: '', confirm: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [isChangingPwd, setIsChangingPwd] = useState(false);
   const [newPinResetInput, setNewPinResetInput] = useState('');
   const [isResettingPin, setIsResettingPin] = useState(false);
 
@@ -595,6 +599,56 @@ function App() {
     setIsAdminLoggedIn(false);
     setActiveTab('accueil');
     showToastMsg("Déconnexion réussie.");
+  };
+
+  // --- Changement de mot de passe par le membre lui-même ---
+  const closeChangePwd = () => {
+    setShowChangePwd(false);
+    setPwdForm({ current: '', next: '', confirm: '' });
+    setPwdError('');
+  };
+
+  const handleChangeOwnPassword = async () => {
+    if (!currentUser || isAdminLoggedIn) return;
+    const current = pwdForm.current.trim();
+    const next = pwdForm.next.trim();
+    const confirm = pwdForm.confirm.trim();
+    if (!current || !next || !confirm) { setPwdError("Veuillez remplir les trois champs."); return; }
+    if (next.length < 4) { setPwdError("Le nouveau mot de passe doit contenir au moins 4 caractères."); return; }
+    if (next !== confirm) { setPwdError("La confirmation ne correspond pas au nouveau mot de passe."); return; }
+    if (next === current) { setPwdError("Le nouveau mot de passe doit être différent de l'actuel."); return; }
+
+    setPwdError('');
+    setIsChangingPwd(true);
+    try {
+      const isBureauMember = members.some(m => m.id === currentUser.id && m.matricule === currentUser.matricule);
+      const record = isBureauMember
+        ? members.find(m => m.id === currentUser.id)
+        : registry.find(r => r.id === currentUser.id);
+      if (!record) { setPwdError("Compte introuvable. Veuillez vous reconnecter."); return; }
+
+      const currentHash = await hashSecret(record.matricule, current);
+      if (currentHash !== record.pinHash) { setPwdError("Le mot de passe actuel est incorrect."); return; }
+
+      const pinHash = await hashSecret(record.matricule, next);
+      if (supabaseClient) {
+        const table = isBureauMember ? 'bureau_members' : 'member_registry';
+        const { error } = await supabaseClient.from(table).update({ pin_hash: pinHash }).eq('id', record.id);
+        if (error) { setPwdError("Impossible d'enregistrer le nouveau mot de passe : " + error.message); return; }
+      }
+      if (isBureauMember) {
+        setMembers(prev => prev.map(m => m.id === record.id ? { ...m, pinHash } : m));
+      } else {
+        setRegistry(prev => prev.map(r => r.id === record.id ? { ...r, pinHash } : r));
+      }
+      setCurrentUser(u => ({ ...u, pinHash }));
+      closeChangePwd();
+      showToastMsg("Votre mot de passe a été modifié avec succès.", 'success');
+    } catch (err) {
+      setPwdError("Erreur lors du changement de mot de passe : " + err.message);
+    } finally {
+      setIsChangingPwd(false);
+    }
   };
 
   // --- Réinitialisation de mot de passe par l'administrateur ---
@@ -903,6 +957,62 @@ function App() {
               className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
             >
               {isResettingPin ? "Modification..." : "Valider la modification"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODALE CHANGEMENT DE MOT DE PASSE (MEMBRE) */}
+      {showChangePwd && currentUser && !isAdminLoggedIn && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={closeChangePwd}>
+          <div className="glass-card w-full max-w-sm rounded-3xl p-8 space-y-5 relative" onClick={e => e.stopPropagation()}>
+            <button onClick={closeChangePwd} className="absolute top-5 right-5 text-stone-400 hover:text-stone-700" aria-label="Fermer"><X className="w-5 h-5" /></button>
+            <div className="space-y-1">
+              <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
+                <Key className="w-5 h-5 text-orange-600" />
+              </div>
+              <h3 className="font-serif text-xl font-bold text-stone-900 pt-2">Changer mon mot de passe</h3>
+              <p className="text-xs text-stone-500">Saisissez votre mot de passe actuel, puis le nouveau (4 caractères minimum).</p>
+            </div>
+            <div className="space-y-3">
+              <input
+                type="password"
+                autoFocus
+                placeholder="Mot de passe actuel"
+                value={pwdForm.current}
+                onChange={(e) => { setPwdForm(f => ({ ...f, current: e.target.value })); setPwdError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleChangeOwnPassword()}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="password"
+                placeholder="Nouveau mot de passe"
+                value={pwdForm.next}
+                onChange={(e) => { setPwdForm(f => ({ ...f, next: e.target.value })); setPwdError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleChangeOwnPassword()}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+              <input
+                type="password"
+                placeholder="Confirmer le nouveau mot de passe"
+                value={pwdForm.confirm}
+                onChange={(e) => { setPwdForm(f => ({ ...f, confirm: e.target.value })); setPwdError(''); }}
+                onKeyDown={(e) => e.key === 'Enter' && handleChangeOwnPassword()}
+                className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+              />
+            </div>
+            {pwdError && (
+              <div role="alert" className="flex items-start gap-2 px-4 py-3 rounded-2xl bg-rose-50 border border-rose-300 text-rose-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span className="text-xs font-semibold leading-relaxed">{pwdError}</span>
+              </div>
+            )}
+            <button
+              onClick={handleChangeOwnPassword}
+              disabled={isChangingPwd}
+              className="hover-scale w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 disabled:opacity-60"
+            >
+              {isChangingPwd ? "Enregistrement..." : "Enregistrer le nouveau mot de passe"}
             </button>
           </div>
         </div>
@@ -1393,9 +1503,16 @@ function App() {
                 <p className="text-stone-500 text-sm mt-1">Accès administrateur</p>
               )}
             </div>
-            <button onClick={handleLogout} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 text-white font-semibold">
-              <LogOut className="w-4 h-4" /> Se déconnecter
-            </button>
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+              {!isAdminLoggedIn && (
+                <button onClick={() => setShowChangePwd(true)} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30">
+                  <Key className="w-4 h-4" /> Changer mon mot de passe
+                </button>
+              )}
+              <button onClick={handleLogout} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-stone-900 text-white font-semibold">
+                <LogOut className="w-4 h-4" /> Se déconnecter
+              </button>
+            </div>
           </div>
         )}
 
