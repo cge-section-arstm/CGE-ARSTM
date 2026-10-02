@@ -170,6 +170,7 @@ const explainDbError = (error) => {
   if (code === '23505') return "ce matricule est déjà utilisé par une autre fiche. Détail : " + msg;
   if (code === '42501' || /row-level security/i.test(msg)) return "Supabase refuse l'opération (droits RLS). Relancez le script supabase_tout_cge_arstm.sql. Détail : " + msg;
   if (code === 'PGRST116') return "Supabase n'a pas renvoyé la fiche modifiée (droits de lecture/modification manquants). Relancez le script supabase_tout_cge_arstm.sql.";
+  if (code === '22001' || /Photo trop lourde/i.test(msg)) return msg;
   if (/payload|too large|413|request entity/i.test(msg)) return "la photo est trop lourde. Choisissez une image plus petite.";
   if (/Failed to fetch|NetworkError|network/i.test(msg)) return "connexion à Supabase impossible (réseau ou photo trop lourde). Vérifiez votre connexion et réessayez.";
   return msg;
