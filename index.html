@@ -593,7 +593,7 @@ function App() {
     (async () => {
       setIsSyncing(true);
       try {
-        const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
+        const { data: memberRows, error: mErr } = await fetchBureauRows();
         if (mErr) { console.error('Chargement du bureau :', mErr.message); setBureauSync(explainDbError(mErr)); }
         if (!mErr && memberRows) {
           setBureauSync('ok');
@@ -1144,10 +1144,26 @@ function App() {
     }
   };
 
+  // Lecture du bureau. Si Supabase est trop lent (photos très lourdes : « statement timeout »),
+  // on charge d'abord les fiches SANS les photos, puis chaque photo séparément.
+  const fetchBureauRows = async () => {
+    const full = await supabaseClient.from('bureau_members').select('*').order('id');
+    const isTimeout = full.error && (full.error.code === '57014' || /statement timeout/i.test(full.error.message || ''));
+    if (!isTimeout) return full;
+    console.warn('Bureau : lecture lente, chargement des photos une par une.');
+    const light = await supabaseClient.from('bureau_members').select('id, matricule, pin_hash, name, role, department, position, bio').order('id');
+    if (light.error) return light;
+    const rows = await Promise.all((light.data || []).map(async row => {
+      const { data: one, error } = await supabaseClient.from('bureau_members').select('image').eq('id', row.id).maybeSingle();
+      return { ...row, image: (!error && one) ? one.image : null };
+    }));
+    return { data: rows, error: null };
+  };
+
   // Recharge la liste du bureau depuis Supabase (utile si la page affiche des fiches périmées)
   const reloadMembersFromServer = async () => {
     if (!supabaseClient) return false;
-    const { data, error } = await supabaseClient.from('bureau_members').select('*').order('id');
+    const { data, error } = await fetchBureauRows();
     if (error || !data) { setBureauSync(explainDbError(error) || 'réponse vide'); return false; }
     setMembers(data.map(mapMemberRow));
     setBureauSync('ok');
