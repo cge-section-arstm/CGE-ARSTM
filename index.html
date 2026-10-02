@@ -88,6 +88,7 @@ const Icon = ({ children, className = "w-5 h-5" }) => (
   </svg>
 );
 const History = (p) => <Icon {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" /><path d="M3.5 4v4h4" /><path d="M12 7.5V12l3 2" /></Icon>;
+const ScrollText = (p) => <Icon {...p}><path d="M8 3.5h9.5A2.5 2.5 0 0 1 20 6v12.5a2 2 0 0 1-2 2H8" /><path d="M8 3.5A2.5 2.5 0 0 0 5.5 6v12.5a2 2 0 0 0 2 2" /><path d="M10 8.5h6M10 12h6M10 15.5h4" /></Icon>;
 const Home = (p) => <Icon {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /><path d="M9.5 20v-6h5v6" /></Icon>;
 const Users = (p) => <Icon {...p}><circle cx="9" cy="8" r="3.2" /><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6" /><circle cx="17" cy="9" r="2.6" /><path d="M15.5 14c2.8.4 4.5 2.4 4.5 5.5" /></Icon>;
 const Briefcase = (p) => <Icon {...p}><rect x="3" y="7.5" width="18" height="12" rx="2" /><path d="M8.5 7.5V6a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v1.5" /><path d="M3 12.5h18" /></Icon>;
@@ -134,7 +135,8 @@ const hashSecret = async (id, secret) => {
 
 const ADMIN_ACCOUNTS = [
   { login: "ARSTM-BUR-07", name: "Administrateur principal", hash: "2506fda50c10c787058c9b0d52cf9503fa50e4ddc83624910725e08224371ad2" },
-  { login: "ARSTM-BUR-12", name: "Administrateur adjoint", hash: "ffac76402ec97103233eb4f3ec11b51688eaeb3801ea187b5bc6852bb2d744b0" }
+  { login: "ARSTM-BUR-12", name: "Administrateur adjoint", hash: "ffac76402ec97103233eb4f3ec11b51688eaeb3801ea187b5bc6852bb2d744b0" },
+  { login: "ARSTM-BUR-13", name: "Administrateur adjoint", hash: "5a12bb9288b04d2478f7e8b6270a4e2cb298597fb65f6a69816022495ef37529" }
 ];
 
 // Compte du Secrétariat : peut modifier uniquement Contact, Médiathèque et Registre.
@@ -143,6 +145,7 @@ const SECRETARIAT_ACCOUNTS = [
   { login: "ARSTM-SEC-01", name: "Secrétariat", hash: "1f0317e0d0d46363279484fb37a5ad6c7b658ed49bd7797d8867c1b402cd294b" }
 ];
 const SECRETARIAT_EDITABLE = ['contacts', 'gallery', 'registre'];
+const RUBRIQUE_NAMES = { news: 'Actualités', jobs: 'Emplois & Stages', events: 'Activités', alumni: 'Alumni', gallery: 'Médiathèque', registre: 'Registre', contacts: 'Contact' };
 
 const initialMembers = [
   { id: 1, matricule: "2026-ARSTM-01", pinHash: "6291f028f1dd63958e289eb48a812be5a997958f97775d80c2ef24b2c8f9185a", name: "KALOGA Mouhammad Islâm", role: "Président Général", bio: "Élève ingénieur en électromécanique navale, passionné par l'innovation maritime.", image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=400" },
@@ -420,6 +423,12 @@ function App() {
   // Auth States
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState(false);
   const [isSecretariatLoggedIn, setIsSecretariatLoggedIn] = useState(false);
+  // Historique des actions (admins & secrétariat) — lecture seule, visible par les admins
+  const [activityLog, setActivityLog] = useState([]);
+  const [isLoadingLog, setIsLoadingLog] = useState(false);
+  const [logFilterActor, setLogFilterActor] = useState('Tous');
+  const [logFilterAction, setLogFilterAction] = useState('Toutes');
+  const actorRef = useRef(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [memberMatriculeInput, setMemberMatriculeInput] = useState('');
@@ -510,6 +519,93 @@ function App() {
   // Droits de modification : admin = tout ; secrétariat = Contact, Médiathèque, Registre.
   const canEdit = (type) => isAdminLoggedIn || (isSecretariatLoggedIn && SECRETARIAT_EDITABLE.includes(type));
 
+  // ---------- Historique (journal d'activité) ----------
+  // Enregistre une ligne : qui, quand, quoi. Aucune fonction ne permet de modifier ou supprimer une ligne.
+  const logActivity = async (action, rubrique, details, actorOverride) => {
+    const actor = actorOverride || actorRef.current;
+    if (!actor) return; // seuls les admins et le secrétariat sont journalisés
+    const entry = {
+      actor_login: actor.login,
+      actor_name: actor.name,
+      action,
+      rubrique: rubrique || '',
+      details: details || '',
+    };
+    let saved = { ...entry, id: `local-${Date.now()}-${Math.random()}`, created_at: new Date().toISOString() };
+    if (supabaseClient) {
+      try {
+        const { data, error } = await supabaseClient.from('activity_log').insert(entry).select().single();
+        if (error) console.error('Historique :', error.message);
+        else if (data) saved = data;
+      } catch (e) { console.error('Historique :', e); }
+    }
+    setActivityLog(prev => [saved, ...prev]);
+  };
+
+  const itemLabel = (item) => (item && (item.title || item.name || item.label)) || '';
+  const describeChanges = (fields, before, after) => {
+    const changed = fields.filter(f => String((before || {})[f.key] ?? '') !== String((after || {})[f.key] ?? ''));
+    if (!changed.length) return 'Aucun champ modifié';
+    return 'Champs modifiés : ' + changed.map(f => {
+      const short = f.label.replace(/\s*\(.*\)\s*$/, '');
+      if (f.type === 'image') return short;
+      const oldV = String((before || {})[f.key] ?? '').slice(0, 60) || '∅';
+      const newV = String((after || {})[f.key] ?? '').slice(0, 60) || '∅';
+      return `${short} (« ${oldV} » → « ${newV} »)`;
+    }).join(' ; ');
+  };
+
+  useEffect(() => {
+    if (!isAdminLoggedIn || !supabaseClient) return;
+    (async () => {
+      setIsLoadingLog(true);
+      try {
+        const { data, error } = await supabaseClient.from('activity_log').select('*').order('created_at', { ascending: false }).limit(1000);
+        if (!error && data) {
+          setActivityLog(prev => {
+            const ids = new Set(data.map(d => d.id));
+            return [...prev.filter(p => String(p.id).startsWith('local-') && !ids.has(p.id)), ...data];
+          });
+        } else if (error) console.error('Chargement historique :', error.message);
+      } finally {
+        setIsLoadingLog(false);
+      }
+    })();
+  }, [isAdminLoggedIn]);
+
+  const refreshLog = async () => {
+    if (!supabaseClient) return;
+    setIsLoadingLog(true);
+    try {
+      const { data, error } = await supabaseClient.from('activity_log').select('*').order('created_at', { ascending: false }).limit(1000);
+      if (error) showToastMsg("Impossible de charger l'historique : " + error.message, 'error');
+      else setActivityLog(data || []);
+    } finally {
+      setIsLoadingLog(false);
+    }
+  };
+
+  const formatLogDate = (iso) => {
+    const d = new Date(iso);
+    if (isNaN(d)) return iso;
+    return d.toLocaleString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  };
+  const logActors = ['Tous', ...Array.from(new Set(activityLog.map(l => `${l.actor_name} (${l.actor_login})`)))];
+  const logActions = ['Toutes', ...Array.from(new Set(activityLog.map(l => l.action)))];
+  const filteredLog = activityLog.filter(l =>
+    (logFilterActor === 'Tous' || `${l.actor_name} (${l.actor_login})` === logFilterActor) &&
+    (logFilterAction === 'Toutes' || l.action === logFilterAction)
+  );
+  const actionBadge = (a) => ({
+    'Connexion': 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
+    'Déconnexion': 'bg-stone-500/10 text-stone-600 border-stone-400/30',
+    'Échec de connexion': 'bg-rose-500/10 text-rose-700 border-rose-500/30',
+    'Ajout': 'bg-sky-500/10 text-sky-700 border-sky-500/20',
+    'Modification': 'bg-amber-500/10 text-amber-700 border-amber-500/30',
+    'Suppression': 'bg-rose-500/10 text-rose-700 border-rose-500/30',
+    'Réinitialisation mot de passe': 'bg-violet-500/10 text-violet-700 border-violet-500/20',
+  }[a] || 'bg-orange-500/10 text-orange-700 border-orange-500/20');
+
   // Chargement des rubriques réservées (registre) uniquement après connexion
   useEffect(() => {
     if (!isUserAuthenticated) { setRegistre(initialRegistre); return; }
@@ -552,6 +648,7 @@ function App() {
     { id: 'registre', label: 'Registre', icon: History, protected: true },
     { id: 'mediatheque', label: 'Médiathèque', icon: Image },
     { id: 'admin-space', label: 'Gestion Admin', icon: ShieldCheck, adminOnly: true },
+    { id: 'historique', label: 'Historique', icon: ScrollText, adminOnly: true },
     { id: 'contact', label: 'Contact', icon: Mail },
   ];
 
@@ -611,6 +708,8 @@ function App() {
           setIsAdminLoggedIn(false);
           setIsSecretariatLoggedIn(true);
           setCurrentUser({ name: secAccount.name, matricule: secAccount.login, isSecretariat: true });
+          actorRef.current = { login: secAccount.login, name: secAccount.name };
+          logActivity('Connexion', '', 'Connexion au site', actorRef.current);
           setFailedAttempts(0);
           setIsLocked(false);
           closeMemberModal();
@@ -622,7 +721,9 @@ function App() {
         if (h === admin.hash) {
           setIsAdminLoggedIn(true);
           setIsSecretariatLoggedIn(false);
-          setCurrentUser({ name: admin.name });
+          setCurrentUser({ name: admin.name, matricule: admin.login });
+          actorRef.current = { login: admin.login, name: admin.name };
+          logActivity('Connexion', '', 'Connexion au site', actorRef.current);
           setFailedAttempts(0);
           setIsLocked(false);
           closeMemberModal();
@@ -636,6 +737,7 @@ function App() {
           if (h === member.pinHash) {
             setIsAdminLoggedIn(false);
     setIsSecretariatLoggedIn(false);
+    actorRef.current = null;
             setCurrentUser(member);
             setFailedAttempts(0);
             setIsLocked(false);
@@ -655,6 +757,7 @@ function App() {
               }
               setIsAdminLoggedIn(false);
     setIsSecretariatLoggedIn(false);
+    actorRef.current = null;
               setCurrentUser(activated);
               setFailedAttempts(0);
               setIsLocked(false);
@@ -666,6 +769,7 @@ function App() {
             if (h === registrant.pinHash) {
               setIsAdminLoggedIn(false);
     setIsSecretariatLoggedIn(false);
+    actorRef.current = null;
               setCurrentUser(registrant);
               setFailedAttempts(0);
               setIsLocked(false);
@@ -677,6 +781,10 @@ function App() {
         }
       }
 
+      const privileged = secAccount || admin;
+      if (privileged) {
+        logActivity('Échec de connexion', '', 'Mot de passe incorrect', { login: privileged.login, name: privileged.name });
+      }
       const attempts = failedAttempts + 1;
       setFailedAttempts(attempts);
       const remaining = MAX_LOGIN_ATTEMPTS - attempts;
@@ -693,9 +801,12 @@ function App() {
   };
 
   const handleLogout = () => {
+    if (actorRef.current) logActivity('Déconnexion', '', 'Déconnexion du site');
+    actorRef.current = null;
     setCurrentUser(null);
     setIsAdminLoggedIn(false);
     setIsSecretariatLoggedIn(false);
+    actorRef.current = null;
     setActiveTab('accueil');
     showToastMsg("Déconnexion réussie.");
   };
@@ -781,6 +892,7 @@ function App() {
       // Si le compte était verrouillé
       if (isLocked) setIsLocked(false);
 
+      logActivity('Réinitialisation mot de passe', isBureauMember ? 'Membres du bureau' : 'Annuaire des membres', `${resetModalMember.name} (${resetModalMember.matricule})`);
       showToastMsg(`Mot de passe réinitialisé pour ${resetModalMember.name}.`);
       setResetModalMember(null);
       setNewPinResetInput('');
@@ -858,6 +970,10 @@ function App() {
         }
         setCurrentUser(prev => (prev && prev.id === editingMemberId && !isAdminLoggedIn) ? { ...prev, ...memberData, pinHash: newPinHash || prev.pinHash } : prev);
         closeAddMemberModal();
+        {
+          const before = members.find(m => m.id === editingMemberId);
+          logActivity('Modification', 'Membres du bureau', `${memberData.name} — ${describeChanges([{key:'name',label:'Nom'},{key:'role',label:'Rôle'},{key:'matricule',label:'Matricule'},{key:'bio',label:'Bio'},{key:'image',label:'Photo',type:'image'}], before, memberData)}${newPinHash ? ' ; code PIN changé' : ''}`);
+        }
         showToastMsg(`${memberData.name} a été modifié(e) avec succès.`);
       } else {
         const pinHash = await hashSecret(matricule.trim(), pin.trim());
@@ -882,6 +998,7 @@ function App() {
           setMembers(prev => [...prev, { id: newId, pinHash, ...memberData }]);
         }
         closeAddMemberModal();
+        logActivity('Ajout', 'Membres du bureau', `${memberData.name} (${memberData.role}, ${memberData.matricule})`);
         showToastMsg(`${memberData.name} a été ajouté(e) au bureau.`);
       }
     } finally {
@@ -903,6 +1020,7 @@ function App() {
     }
     setMembers(prev => prev.filter(m => m.id !== member.id));
     setMemberToDelete(null);
+    logActivity('Suppression', 'Membres du bureau', `${member.name} (${member.role}, ${member.matricule})`);
     showToastMsg(`${member.name} a été retiré(e) du bureau.`);
   };
 
@@ -964,6 +1082,11 @@ function App() {
         } else {
           setter(prev => prev.map(item => item.id === editingId ? { ...item, ...payload } : item));
         }
+        {
+          const [currentItems] = RESOURCE_STATE[type];
+          const before = currentItems.find(i => i.id === editingId);
+          logActivity('Modification', RUBRIQUE_NAMES[type] || type, `${itemLabel(payload) || itemLabel(before)} — ${describeChanges(config.fields, before, payload)}`);
+        }
         showToastMsg(`${config.titleSingular} modifié(e) avec succès.`);
       } else {
         if (supabaseClient) {
@@ -978,6 +1101,7 @@ function App() {
           const newId = current.length ? Math.max(...current.map(i => i.id)) + 1 : 1;
           setter(prev => [...prev, { id: newId, ...payload }]);
         }
+        logActivity('Ajout', RUBRIQUE_NAMES[type] || type, itemLabel(payload));
         showToastMsg(`${config.titleSingular} ajouté(e) avec succès.`);
       }
       closeResourceModal();
@@ -1004,6 +1128,7 @@ function App() {
     }
     setter(prev => prev.filter(i => i.id !== item.id));
     setResourceToDelete(null);
+    logActivity('Suppression', RUBRIQUE_NAMES[type] || type, itemLabel(item));
     showToastMsg(`${config.titleSingular} supprimé(e) avec succès.`);
   };
 
@@ -1618,6 +1743,66 @@ function App() {
               </button>
             </div>
           )
+        )}
+
+        {/* HISTORIQUE VIEW — admins uniquement, lecture seule */}
+        {activeTab === 'historique' && isAdminLoggedIn && (
+          <div className="space-y-6">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-stone-900">Historique</h2>
+                <p className="text-stone-500">Connexions et modifications des administrateurs et du secrétariat — lecture seule</p>
+              </div>
+              <button onClick={refreshLog} disabled={isLoadingLog} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-stone-200 text-stone-700 text-xs font-semibold disabled:opacity-60">
+                <RefreshCw className="w-4 h-4 text-orange-600" /> {isLoadingLog ? 'Chargement...' : 'Actualiser'}
+              </button>
+            </div>
+
+            <div className="flex flex-col sm:flex-row gap-3">
+              <select value={logFilterActor} onChange={e => setLogFilterActor(e.target.value)} className="px-4 py-2 rounded-2xl bg-white/70 border border-stone-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500">
+                {logActors.map(a => <option key={a} value={a}>{a === 'Tous' ? 'Toutes les personnes' : a}</option>)}
+              </select>
+              <select value={logFilterAction} onChange={e => setLogFilterAction(e.target.value)} className="px-4 py-2 rounded-2xl bg-white/70 border border-stone-200 text-xs focus:outline-none focus:ring-2 focus:ring-orange-500">
+                {logActions.map(a => <option key={a} value={a}>{a === 'Toutes' ? 'Toutes les actions' : a}</option>)}
+              </select>
+              <span className="text-xs text-stone-500 self-center">{filteredLog.length} ligne{filteredLog.length > 1 ? 's' : ''}</span>
+            </div>
+
+            {filteredLog.length === 0 ? (
+              <div className="glass-card p-8 rounded-3xl text-center space-y-3">
+                <ScrollText className="w-12 h-12 mx-auto text-orange-600" />
+                <h3 className="font-serif text-xl font-bold">Aucune activité enregistrée</h3>
+                <p className="text-stone-600 text-sm">Les connexions et modifications apparaîtront ici automatiquement.</p>
+              </div>
+            ) : (
+              <div className="glass-card rounded-3xl overflow-hidden shadow-lg border border-white/60">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-sm text-stone-700">
+                    <thead className="bg-orange-500/10 text-orange-900 font-serif font-bold text-xs uppercase tracking-wider border-b border-orange-500/20">
+                      <tr>
+                        <th className="px-5 py-4 whitespace-nowrap">Date & heure</th>
+                        <th className="px-5 py-4">Personne</th>
+                        <th className="px-5 py-4">Action</th>
+                        <th className="px-5 py-4">Rubrique</th>
+                        <th className="px-5 py-4">Détail</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-stone-200/60">
+                      {filteredLog.map(l => (
+                        <tr key={l.id} className="align-top">
+                          <td className="px-5 py-3 whitespace-nowrap font-mono text-xs">{formatLogDate(l.created_at)}</td>
+                          <td className="px-5 py-3"><p className="font-semibold text-stone-900 text-xs">{l.actor_name}</p><p className="text-[11px] text-stone-500">{l.actor_login}</p></td>
+                          <td className="px-5 py-3"><span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border whitespace-nowrap ${actionBadge(l.action)}`}>{l.action}</span></td>
+                          <td className="px-5 py-3 text-xs">{l.rubrique || '—'}</td>
+                          <td className="px-5 py-3 text-xs text-stone-600 break-words max-w-md">{l.details}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
         {/* ALUMNI VIEW */}
