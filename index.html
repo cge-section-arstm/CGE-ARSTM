@@ -592,6 +592,7 @@ function App() {
       setIsSyncing(true);
       try {
         const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
+        if (mErr) console.error('Chargement du bureau :', mErr.message);
         if (!mErr && memberRows) {
           setSupabaseReady(true);
           setMembers(memberRows.map(mapMemberRow));
@@ -1140,6 +1141,15 @@ function App() {
     }
   };
 
+  // Recharge la liste du bureau depuis Supabase (utile si la page affiche des fiches périmées)
+  const reloadMembersFromServer = async () => {
+    if (!supabaseClient) return false;
+    const { data, error } = await supabaseClient.from('bureau_members').select('*').order('id');
+    if (error || !data) return false;
+    setMembers(data.map(mapMemberRow));
+    return true;
+  };
+
   const handleSaveMember = async () => {
     const { name, role, department, position, matricule, bio, pin, image } = newMemberForm;
     const isEditing = editingMemberId !== null;
@@ -1183,7 +1193,15 @@ function App() {
             return;
           }
           if (!data) {
-            showToastMsg("Supabase n'a modifié aucune fiche : droits de modification (RLS) manquants sur bureau_members. Relancez le script supabase_tout_cge_arstm.sql.", 'error');
+            // Aucune ligne modifiée : la fiche existe-t-elle encore côté serveur ?
+            const { data: still } = await supabaseClient.from('bureau_members').select('id').eq('id', editingMemberId);
+            if (!still || still.length === 0) {
+              await reloadMembersFromServer();
+              closeAddMemberModal();
+              showToastMsg("Cette fiche avait été remplacée dans Supabase (la page affichait d'anciennes données). La liste vient d'être rechargée : rouvrez la fiche et recommencez.", 'error');
+            } else {
+              showToastMsg("Supabase a refusé la modification (règles d'accès RLS). Relancez la dernière version du script supabase_tout_cge_arstm.sql.", 'error');
+            }
             return;
           }
           setMembers(prev => prev.map(m => m.id === editingMemberId ? mapMemberRow(data) : m));
