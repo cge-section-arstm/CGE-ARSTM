@@ -137,7 +137,7 @@ const SITE_CREATORS = [
 
 // ---------- Photos : réduction automatique avant envoi ----------
 // Une photo de téléphone (3 à 8 Mo) est redimensionnée à 900 px max et compressée en JPEG (~80-150 Ko).
-const compressImage = (file, maxSize = 900, quality = 0.82) => new Promise((resolve, reject) => {
+const compressImage = (file, maxSize = 640, quality = 0.72) => new Promise((resolve, reject) => {
   if (!file || !file.type || !file.type.startsWith('image/')) { reject(new Error("Ce fichier n'est pas une image.")); return; }
   const reader = new FileReader();
   reader.onerror = () => reject(new Error("Lecture de l'image impossible."));
@@ -176,7 +176,7 @@ const explainDbError = (error) => {
   return msg;
 };
 
-const SITE_VERSION = 'evo35';
+const SITE_VERSION = 'evo36';
 
 const SITE_SALT = "cge-arstm-2026";
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -1144,8 +1144,10 @@ function App() {
     if (!file) return;
     setPhotoStatus(`Préparation de la photo (${Math.round(file.size / 1024)} Ko)…`);
     try {
-      const dataUrl = await compressImage(file);
+      if (file.size > 20 * 1024 * 1024) throw new Error("photo trop volumineuse (20 Mo maximum avant compression).");
+      const dataUrl = await compressImage(file, 640, 0.72);
       const ko = Math.round(dataUrl.length * 0.75 / 1024);
+      if (ko > 450) throw new Error("la photo reste trop lourde après compression. Essayez une image JPG ou PNG plus petite.");
       setNewMemberForm(f => ({ ...f, image: dataUrl }));
       setPhotoStatus(`Photo prête (${ko} Ko). Cliquez maintenant sur « Enregistrer ».`);
     } catch (err) {
@@ -1208,9 +1210,14 @@ function App() {
           role: role.trim(),
           department,
           position,
-          bio: bio.trim() || null,
-          image: image || null
+          bio: bio.trim() || null
         };
+        // N'envoie la photo à Supabase que si elle a réellement changé.
+        // Cela évite de renvoyer une ancienne image lourde à chaque modification.
+        const previousMember = members.find(m => m.id === editingMemberId);
+        if ((image || null) !== ((previousMember && previousMember.image) || null)) {
+          memberData.image = image || null;
+        }
         let newPinHash = null;
         if (pin.trim()) {
           newPinHash = await hashSecret(matricule.trim(), pin.trim());
