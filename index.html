@@ -135,6 +135,46 @@ const SITE_CREATORS = [
   { name: "KALOGA Mouhammad Islâm", section: "Mécanique Navale", promo: "38ᵉ promotion" },
 ];
 
+// ---------- Photos : réduction automatique avant envoi ----------
+// Une photo de téléphone (3 à 8 Mo) est redimensionnée à 900 px max et compressée en JPEG (~80-150 Ko).
+const compressImage = (file, maxSize = 900, quality = 0.82) => new Promise((resolve, reject) => {
+  if (!file || !file.type || !file.type.startsWith('image/')) { reject(new Error("Ce fichier n'est pas une image.")); return; }
+  const reader = new FileReader();
+  reader.onerror = () => reject(new Error("Lecture de l'image impossible."));
+  reader.onload = () => {
+    const img = new Image();
+    img.onerror = () => reject(new Error("Format d'image non reconnu par le navigateur (essayez une photo JPG ou PNG)."));
+    img.onload = () => {
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale), h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h); // fond blanc pour les PNG transparents
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = reader.result;
+  };
+  reader.readAsDataURL(file);
+});
+
+// Traduit les erreurs Supabase en message compréhensible
+const explainDbError = (error) => {
+  if (!error) return '';
+  const msg = String(error.message || error);
+  const code = String(error.code || '');
+  if (code === 'PGRST204' || code === '42703' || /column .* (does not exist|of .* in the schema cache)/i.test(msg))
+    return "la base Supabase n'est pas à jour (colonne manquante). Lancez le script supabase_tout_cge_arstm.sql dans Supabase > SQL Editor. Détail : " + msg;
+  if (code === '23502') return "un champ obligatoire dans Supabase est vide. Relancez le script supabase_tout_cge_arstm.sql. Détail : " + msg;
+  if (code === '23505') return "ce matricule est déjà utilisé par une autre fiche. Détail : " + msg;
+  if (code === '42501' || /row-level security/i.test(msg)) return "Supabase refuse l'opération (droits RLS). Relancez le script supabase_tout_cge_arstm.sql. Détail : " + msg;
+  if (code === 'PGRST116') return "Supabase n'a pas renvoyé la fiche modifiée (droits de lecture/modification manquants). Relancez le script supabase_tout_cge_arstm.sql.";
+  if (/payload|too large|413|request entity/i.test(msg)) return "la photo est trop lourde. Choisissez une image plus petite.";
+  if (/Failed to fetch|NetworkError|network/i.test(msg)) return "connexion à Supabase impossible (réseau ou photo trop lourde). Vérifiez votre connexion et réessayez.";
+  return msg;
+};
+
 const SITE_SALT = "cge-arstm-2026";
 const MAX_LOGIN_ATTEMPTS = 5;
 const PRESIDENT_MATRICULE = "ARSTM-CGE-0042";
@@ -1089,12 +1129,15 @@ function App() {
     setShowAddMemberModal(true);
   };
 
-  const handleMemberPhotoUpload = (e) => {
+  const handleMemberPhotoUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setNewMemberForm(f => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await compressImage(file);
+      setNewMemberForm(f => ({ ...f, image: dataUrl }));
+    } catch (err) {
+      showToastMsg("Photo refusée : " + err.message, 'error');
+    }
   };
 
   const handleSaveMember = async () => {
@@ -1133,9 +1176,14 @@ function App() {
         }
 
         if (supabaseClient) {
-          const { data, error } = await supabaseClient.from('bureau_members').update(memberData).eq('id', editingMemberId).select().single();
+          const { data: updatedRows, error } = await supabaseClient.from('bureau_members').update(memberData).eq('id', editingMemberId).select();
+          const data = updatedRows && updatedRows[0];
           if (error) {
-            showToastMsg("Impossible de modifier ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible de modifier ce membre sur le serveur : " + explainDbError(error), 'error');
+            return;
+          }
+          if (!data) {
+            showToastMsg("Supabase n'a modifié aucune fiche : droits de modification (RLS) manquants sur bureau_members. Relancez le script supabase_tout_cge_arstm.sql.", 'error');
             return;
           }
           setMembers(prev => prev.map(m => m.id === editingMemberId ? mapMemberRow(data) : m));
@@ -1165,7 +1213,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from('bureau_members').insert(memberData).select().single();
           if (error) {
-            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + error.message);
+            showToastMsg("Impossible d'enregistrer ce membre sur le serveur : " + explainDbError(error), 'error');
             return;
           }
           setMembers(prev => [...prev, mapMemberRow(data)]);
@@ -1186,7 +1234,7 @@ function App() {
     if (supabaseClient) {
       const { data: deletedRows, error } = await supabaseClient.from('bureau_members').delete().eq('id', member.id).select('id');
       if (error) {
-        showToastMsg("Impossible de retirer ce membre sur le serveur : " + error.message);
+        showToastMsg("Impossible de retirer ce membre sur le serveur : " + explainDbError(error), 'error');
         return;
       }
       if (!deletedRows || deletedRows.length === 0) {
@@ -1221,12 +1269,15 @@ function App() {
     setResourceForm({});
   };
 
-  const handleResourceImageUpload = (e) => {
+  const handleResourceImageUpload = async (e) => {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setResourceForm(f => ({ ...f, image: reader.result }));
-    reader.readAsDataURL(file);
+    try {
+      const dataUrl = await compressImage(file);
+      setResourceForm(f => ({ ...f, image: dataUrl }));
+    } catch (err) {
+      showToastMsg("Photo refusée : " + err.message, 'error');
+    }
   };
 
   const handleSaveResource = async () => {
@@ -1258,7 +1309,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).update(payload).eq('id', editingId).select().single();
           if (error) {
-            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible de modifier ${config.label} sur le serveur : ` + explainDbError(error), 'error');
             return;
           }
           setter(prev => prev.map(item => item.id === editingId ? data : item));
@@ -1275,7 +1326,7 @@ function App() {
         if (supabaseClient) {
           const { data, error } = await supabaseClient.from(config.table).insert(payload).select().single();
           if (error) {
-            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + error.message);
+            showToastMsg(`Impossible d'enregistrer ${config.label} sur le serveur : ` + explainDbError(error), 'error');
             return;
           }
           setter(prev => [...prev, data]);
@@ -1301,7 +1352,7 @@ function App() {
     if (supabaseClient) {
       const { data: deletedRows, error } = await supabaseClient.from(config.table).delete().eq('id', item.id).select('id');
       if (error) {
-        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + error.message);
+        showToastMsg(`Impossible de supprimer ${config.label} sur le serveur : ` + explainDbError(error), 'error');
         return;
       }
       if (!deletedRows || deletedRows.length === 0) {
