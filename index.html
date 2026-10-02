@@ -146,6 +146,7 @@ const SECRETARIAT_ACCOUNTS = [
   { login: "ARSTM-SEC-01", name: "Secrétariat", hash: "1f0317e0d0d46363279484fb37a5ad6c7b658ed49bd7797d8867c1b402cd294b" }
 ];
 const SECRETARIAT_EDITABLE = ['contacts', 'gallery', 'registre'];
+const optValue = (o) => (typeof o === 'string' ? o : o.value);
 const RUBRIQUE_NAMES = { news: 'Actualités', jobs: 'Emplois & Stages', events: 'Activités', alumni: 'Alumni', gallery: 'Médiathèque', registre: 'Registre', contacts: 'Contact' };
 
 const initialMembers = [
@@ -250,6 +251,7 @@ const RESOURCE_CONFIGS = {
     addLabel: 'Ajouter une actualité',
     titleSingular: 'Actualité',
     fields: [
+      { key: 'visibility', label: 'Visible par', type: 'select', options: [{ value: 'public', label: 'Tout le monde (visiteurs)' }, { value: 'membres', label: 'Membres connectés uniquement' }], required: true },
       { key: 'title', label: "Titre de l'actualité", type: 'text', required: true },
       { key: 'date', label: 'Date (ex. 24 Septembre 2026)', type: 'text', required: true },
       { key: 'content', label: 'Contenu (les adresses web écrites ici deviennent cliquables)', type: 'textarea', required: true },
@@ -284,6 +286,7 @@ const RESOURCE_CONFIGS = {
   },
   alumni: {
     table: 'alumni',
+    membersOnly: true,
     label: 'cet alumni',
     addLabel: 'Ajouter un alumni',
     titleSingular: 'Alumni',
@@ -511,7 +514,10 @@ function App() {
         for (const type of Object.keys(RESOURCE_CONFIGS)) {
           const { table, membersOnly } = RESOURCE_CONFIGS[type];
           if (membersOnly) continue; // chargé seulement après connexion
-          const { data: rows, error } = await supabaseClient.from(table).select('*').order('id');
+          let query = supabaseClient.from(table).select('*').order('id');
+          // Actualités : les visiteurs ne reçoivent que les actualités publiques
+          if (type === 'news') query = query.or('visibility.is.null,visibility.eq.public');
+          const { data: rows, error } = await query;
           if (!error && rows) {
             const setter = RESOURCE_STATE[type][1];
             setter(rows);
@@ -528,6 +534,26 @@ function App() {
   const isUserAuthenticated = currentUser !== null || isAdminLoggedIn;
   // Droits de modification : admin = tout ; secrétariat = Contact, Médiathèque, Registre.
   const canEdit = (type) => isAdminLoggedIn || (isSecretariatLoggedIn && SECRETARIAT_EDITABLE.includes(type));
+
+  // ---------- Actualités réservées aux membres ----------
+  const isMembersNews = (n) => n.visibility === 'membres';
+  useEffect(() => {
+    if (!isUserAuthenticated) {
+      setNews(prev => prev.filter(n => !isMembersNews(n)));
+      return;
+    }
+    if (!supabaseClient) return;
+    (async () => {
+      const { data, error } = await supabaseClient.from('news').select('*').eq('visibility', 'membres').order('id');
+      if (error) { console.error('Actualités membres :', error.message); return; }
+      setNews(prev => {
+        const ids = new Set(prev.map(n => n.id));
+        return [...prev, ...(data || []).filter(n => !ids.has(n.id))];
+      });
+    })();
+  }, [isUserAuthenticated]);
+  const publicNews = news.filter(n => !isMembersNews(n));
+  const membersNews = news.filter(isMembersNews);
 
   // ---------- Système de « J'aime » (réservé aux personnes connectées) ----------
   useEffect(() => {
@@ -669,14 +695,22 @@ function App() {
     'Réinitialisation mot de passe': 'bg-violet-500/10 text-violet-700 border-violet-500/20',
   }[a] || 'bg-orange-500/10 text-orange-700 border-orange-500/20');
 
-  // Chargement des rubriques réservées (registre) uniquement après connexion
+  // Chargement des rubriques réservées (registre, alumni) uniquement après connexion
   useEffect(() => {
-    if (!isUserAuthenticated) { setRegistre(initialRegistre); return; }
+    if (!isUserAuthenticated) {
+      setRegistre(initialRegistre);
+      // Hors connexion, on ne garde aucune donnée alumni venant du serveur
+      setAlumni(supabaseClient ? [] : initialAlumni);
+      return;
+    }
     if (!supabaseClient) return;
     (async () => {
       const { data: rows, error } = await supabaseClient.from(RESOURCE_CONFIGS.registre.table).select('*').order('name');
       if (!error && rows) setRegistre(rows);
       else if (error) console.error('Chargement registre :', error.message);
+      const { data: aRows, error: aErr } = await supabaseClient.from(RESOURCE_CONFIGS.alumni.table).select('*').order('id');
+      if (!aErr && aRows) setAlumni(aRows);
+      else if (aErr) { console.error('Chargement alumni :', aErr.message); setAlumni(initialAlumni); }
     })();
   }, [isUserAuthenticated]);
 
@@ -729,7 +763,7 @@ function App() {
     { id: 'bureau', label: 'Membres', icon: Users },
     { id: 'emplois', label: 'Emplois & Stages', icon: Briefcase, protected: true },
     { id: 'activites', label: 'Activités', icon: Calendar },
-    { id: 'alumni', label: 'Alumni', icon: GraduationCap },
+    { id: 'alumni', label: 'Alumni', icon: GraduationCap, protected: true },
     { id: 'registre', label: 'Registre', icon: History, protected: true },
     { id: 'mediatheque', label: 'Médiathèque', icon: Image },
     { id: 'admin-space', label: 'Gestion Admin', icon: ShieldCheck, adminOnly: true },
@@ -1112,7 +1146,7 @@ function App() {
   const openAddResource = (type) => {
     const config = RESOURCE_CONFIGS[type];
     const blank = {};
-    config.fields.forEach(f => { blank[f.key] = f.type === 'select' ? f.options[0] : ''; });
+    config.fields.forEach(f => { blank[f.key] = f.type === 'select' ? optValue(f.options[0]) : ''; });
     setResourceForm(blank);
     setResourceModal({ type, editingId: null });
   };
@@ -1120,7 +1154,7 @@ function App() {
   const openEditResource = (type, item) => {
     const config = RESOURCE_CONFIGS[type];
     const values = {};
-    config.fields.forEach(f => { values[f.key] = item[f.key] || (f.type === 'select' ? f.options[0] : ''); });
+    config.fields.forEach(f => { values[f.key] = item[f.key] || (f.type === 'select' ? optValue(f.options[0]) : ''); });
     setResourceForm(values);
     setResourceModal({ type, editingId: item.id });
   };
@@ -1228,6 +1262,45 @@ function App() {
   const filteredRegistry = registry.filter(item => 
     item.name.toLowerCase().includes(adminSearchQuery.toLowerCase()) || 
     item.matricule.toLowerCase().includes(adminSearchQuery.toLowerCase())
+  );
+
+  const renderNewsCard = (item) => (
+<div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4 relative">
+      {isAdminLoggedIn && (
+        <div className="absolute top-3 right-3 z-10 flex gap-2">
+          <button onClick={() => openEditResource('news', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
+          <button onClick={() => setResourceToDelete({ type: 'news', item })} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
+        </div>
+      )}
+      <div className={`flex justify-between items-center text-xs font-semibold ${isAdminLoggedIn ? 'pr-20' : ''}`}>
+        <span className="flex flex-wrap items-center gap-2"><span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>{isMembersNews(item) && <span className="inline-flex items-center gap-1 bg-stone-900 text-white px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wide"><Key className="w-3 h-3 text-orange-400" /> Membres</span>}</span>
+        {(() => {
+          const liked = hasLiked(item.id);
+          const count = likeCount(item.id);
+          return (
+            <button
+              type="button"
+              onClick={() => toggleLike(item)}
+              disabled={!!pendingLikes[item.id]}
+              aria-pressed={liked}
+              aria-label={liked ? "Je n'aime plus" : "J'aime"}
+              title={isUserAuthenticated ? (liked ? "Retirer mon J'aime" : "J'aime") : "Connectez-vous pour aimer"}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-bold transition duration-200 disabled:opacity-60 ${liked ? 'bg-rose-500 text-white border-rose-500' : 'bg-white/70 text-rose-500 border-rose-200 hover:bg-rose-50'}`}
+            >
+              <Heart className={`w-4 h-4 ${liked ? 'fill-white' : ''}`} /> {count}
+            </button>
+          );
+        })()}
+      </div>
+      <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
+      <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(item.content)}</p>
+      {item.link && normalizeUrl(item.link) && (
+        <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 max-w-full">
+          <LinkIcon className="w-4 h-4 flex-shrink-0" />
+          <span className="truncate">{item.link_label || 'Ouvrir le lien'}</span>
+        </a>
+      )}
+    </div>
   );
 
   return (
@@ -1424,7 +1497,7 @@ function App() {
               <div><h3 className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
               <div className="space-y-3">{config.fields.map(field => (
                 <div key={field.key} className="space-y-1.5"><label className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
-                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'select' ? <select value={resourceForm[field.key] || field.options[0]} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">{field.options.map(o => <option key={o} value={o}>{o}</option>)}</select> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'} placeholder={field.type === 'url' ? 'https://' : undefined} value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
+                  {field.type === 'textarea' ? <textarea rows="4" value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" /> : field.type === 'select' ? <select value={resourceForm[field.key] || optValue(field.options[0])} onChange={e => setResourceForm(f => ({...f,[field.key]:e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500">{field.options.map(o => { const v = typeof o === 'string' ? o : o.value; const l = typeof o === 'string' ? o : o.label; return <option key={v} value={v}>{l}</option>; })}</select> : field.type === 'image' ? <div className="space-y-2"><input type="file" accept="image/*" onChange={handleResourceImageUpload} className="w-full text-xs" />{resourceForm.image && <img src={resourceForm.image} alt="Aperçu" className="w-full h-44 object-cover rounded-2xl" />}</div> : <input type={field.type === 'number' ? 'number' : field.type === 'url' ? 'url' : 'text'} placeholder={field.type === 'url' ? 'https://' : undefined} value={resourceForm[field.key] || ''} onChange={e => setResourceForm(f => ({...f,[field.key]: field.type === 'number' ? Number(e.target.value) : e.target.value}))} className="w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />}
                 </div>
               ))}</div>
               <button onClick={handleSaveResource} disabled={isSavingResource} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingResource ? 'Enregistrement...' : resourceModal.editingId !== null ? 'Enregistrer les modifications' : 'Ajouter'}</button>
@@ -1528,45 +1601,43 @@ function App() {
                 )}
               </div>
               <div className="grid md:grid-cols-2 gap-6">
-                {news.map(item => (
-                  <div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4 relative">
-                    {isAdminLoggedIn && (
-                      <div className="absolute top-3 right-3 z-10 flex gap-2">
-                        <button onClick={() => openEditResource('news', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
-                        <button onClick={() => setResourceToDelete({ type: 'news', item })} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-4 h-4" /></button>
-                      </div>
-                    )}
-                    <div className={`flex justify-between items-center text-xs font-semibold ${isAdminLoggedIn ? 'pr-20' : ''}`}>
-                      <span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>
-                      {(() => {
-                        const liked = hasLiked(item.id);
-                        const count = likeCount(item.id);
-                        return (
-                          <button
-                            type="button"
-                            onClick={() => toggleLike(item)}
-                            disabled={!!pendingLikes[item.id]}
-                            aria-pressed={liked}
-                            aria-label={liked ? "Je n'aime plus" : "J'aime"}
-                            title={isUserAuthenticated ? (liked ? "Retirer mon J'aime" : "J'aime") : "Connectez-vous pour aimer"}
-                            className={`flex items-center gap-1.5 px-3 py-1 rounded-full border font-bold transition duration-200 disabled:opacity-60 ${liked ? 'bg-rose-500 text-white border-rose-500' : 'bg-white/70 text-rose-500 border-rose-200 hover:bg-rose-50'}`}
-                          >
-                            <Heart className={`w-4 h-4 ${liked ? 'fill-white' : ''}`} /> {count}
-                          </button>
-                        );
-                      })()}
-                    </div>
-                    <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
-                    <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(item.content)}</p>
-                    {item.link && normalizeUrl(item.link) && (
-                      <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 max-w-full">
-                        <LinkIcon className="w-4 h-4 flex-shrink-0" />
-                        <span className="truncate">{item.link_label || 'Ouvrir le lien'}</span>
-                      </a>
-                    )}
-                  </div>
-                ))}
+                {publicNews.map(renderNewsCard)}
               </div>
+              {publicNews.length === 0 && (
+                <p className="text-sm text-stone-500">Aucune actualité publique pour le moment.</p>
+              )}
+
+              {isUserAuthenticated ? (
+                <div className="space-y-6 pt-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-stone-900 flex items-center justify-center"><Key className="w-5 h-5 text-orange-400" /></div>
+                    <div>
+                      <h3 className="font-serif text-2xl font-bold text-stone-900">Actualités réservées aux membres</h3>
+                      <p className="text-xs text-stone-500">Visibles uniquement par les membres connectés</p>
+                    </div>
+                  </div>
+                  {membersNews.length === 0 ? (
+                    <div className="glass-card rounded-3xl p-6 text-sm text-stone-500">Aucune actualité réservée aux membres pour le moment.</div>
+                  ) : (
+                    <div className="grid md:grid-cols-2 gap-6">
+                      {membersNews.map(renderNewsCard)}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="glass-card rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-orange-500/20">
+                  <div className="flex items-center gap-4 text-center sm:text-left">
+                    <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-orange-500/15 border border-orange-500/25 items-center justify-center flex-shrink-0"><Key className="w-6 h-6 text-orange-600" /></div>
+                    <div>
+                      <p className="font-serif text-lg font-bold text-stone-900">Envie de plus d'actualités ?</p>
+                      <p className="text-sm text-stone-600">Connectez-vous à votre espace membre pour découvrir les actualités réservées aux membres du club.</p>
+                    </div>
+                  </div>
+                  <button onClick={() => setShowMemberModal(true)} className="hover-scale px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm whitespace-nowrap">
+                    Se connecter
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1939,9 +2010,13 @@ function App() {
 
         {/* ALUMNI VIEW */}
         {activeTab === 'alumni' && (
+          isUserAuthenticated ? (
           <div className="space-y-8">
             <div className="flex flex-wrap items-end justify-between gap-4">
-              <h2 className="font-serif text-3xl font-bold text-stone-900">Réseau Alumni</h2>
+              <div>
+                <h2 className="font-serif text-3xl font-bold text-stone-900">Réseau Alumni</h2>
+                <p className="text-stone-500">Espace réservé aux membres</p>
+              </div>
               {isAdminLoggedIn && (
                 <button onClick={() => openAddResource('alumni')} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
                   <Plus className="w-4 h-4" /> Ajouter un alumni
@@ -1961,7 +2036,20 @@ function App() {
                 </div>
               ))}
             </div>
+            {alumni.length === 0 && (
+              <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Aucun alumni enregistré pour le moment.</div>
+            )}
           </div>
+          ) : (
+            <div className="max-w-md mx-auto glass-card p-8 rounded-3xl text-center space-y-4">
+              <GraduationCap className="w-12 h-12 mx-auto text-orange-600" />
+              <h3 className="font-serif text-xl font-bold">Espace Réservé</h3>
+              <p className="text-stone-600 text-sm">Le réseau Alumni est réservé aux membres. Connectez-vous pour consulter les anciens élèves et leurs parcours.</p>
+              <button onClick={() => setShowMemberModal(true)} className="hover-scale px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30">
+                Se connecter
+              </button>
+            </div>
+          )
         )}
 
         {/* MEDIATHEQUE VIEW */}
