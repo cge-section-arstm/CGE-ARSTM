@@ -567,6 +567,8 @@ function App() {
 
   // Data Stores
   const [members, setMembers] = useState(initialMembers);
+  // null = pas encore chargé ; 'ok' = données Supabase ; sinon texte de l'erreur
+  const [bureauSync, setBureauSync] = useState(null);
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState(initialJobs);
   const [alumni, setAlumni] = useState(initialAlumni);
@@ -592,8 +594,9 @@ function App() {
       setIsSyncing(true);
       try {
         const { data: memberRows, error: mErr } = await supabaseClient.from('bureau_members').select('*').order('id');
-        if (mErr) console.error('Chargement du bureau :', mErr.message);
+        if (mErr) { console.error('Chargement du bureau :', mErr.message); setBureauSync(explainDbError(mErr)); }
         if (!mErr && memberRows) {
+          setBureauSync('ok');
           setSupabaseReady(true);
           setMembers(memberRows.map(mapMemberRow));
         }
@@ -1145,8 +1148,9 @@ function App() {
   const reloadMembersFromServer = async () => {
     if (!supabaseClient) return false;
     const { data, error } = await supabaseClient.from('bureau_members').select('*').order('id');
-    if (error || !data) return false;
+    if (error || !data) { setBureauSync(explainDbError(error) || 'réponse vide'); return false; }
     setMembers(data.map(mapMemberRow));
+    setBureauSync('ok');
     return true;
   };
 
@@ -1196,9 +1200,10 @@ function App() {
             // Aucune ligne modifiée : la fiche existe-t-elle encore côté serveur ?
             const { data: still } = await supabaseClient.from('bureau_members').select('id').eq('id', editingMemberId);
             if (!still || still.length === 0) {
-              await reloadMembersFromServer();
+              const ok = await reloadMembersFromServer();
               closeAddMemberModal();
-              showToastMsg("Cette fiche avait été remplacée dans Supabase (la page affichait d'anciennes données). La liste vient d'être rechargée : rouvrez la fiche et recommencez.", 'error');
+              if (ok) showToastMsg("Cette fiche avait été remplacée dans Supabase (la page affichait d'anciennes données). La liste vient d'être rechargée : rouvrez la fiche et recommencez.", 'error');
+              else showToastMsg("La page n'arrive pas à lire la liste du bureau dans Supabase : elle affiche les fiches de secours du fichier. Voir l'encadré rouge en haut de la page Membres.", 'error');
             } else {
               showToastMsg("Supabase a refusé la modification (règles d'accès RLS). Relancez la dernière version du script supabase_tout_cge_arstm.sql.", 'error');
             }
@@ -1904,6 +1909,16 @@ function App() {
         {/* BUREAU / MEMBRES VIEW */}
         {activeTab === 'bureau' && (
           <div className="space-y-8">
+            {isAdminLoggedIn && supabaseClient && bureauSync && bureauSync !== 'ok' && (
+              <div role="alert" className="flex items-start gap-3 px-5 py-4 rounded-2xl bg-rose-50 border border-rose-300 text-rose-800">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div className="text-sm space-y-1">
+                  <p className="font-bold">Les fiches affichées ne viennent pas de Supabase (fiches de secours du fichier) : les modifications ne peuvent pas être enregistrées.</p>
+                  <p>Cause : {bureauSync}</p>
+                  <button onClick={reloadMembersFromServer} className="mt-1 px-3 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-semibold">Réessayer le chargement</button>
+                </div>
+              </div>
+            )}
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 <h2 className="font-serif text-3xl font-bold text-stone-900">Bureau Exécutif</h2>
