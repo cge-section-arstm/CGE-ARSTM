@@ -100,10 +100,10 @@
 
   /* Le bateau de l'accueil tangue très légèrement (la mer, elle, ne bouge pas) */
   @keyframes shipBob {
-    from { transform: rotate(-0.9deg) translateY(1px); }
-    to   { transform: rotate(0.9deg) translateY(-2px); }
+    from { transform: rotate(-0.5deg) translateY(0.5px); }
+    to   { transform: rotate(0.5deg) translateY(-1px); }
   }
-  .ship-bob { transform-origin: 270px 176px; animation: shipBob 4s ease-in-out infinite alternate; }
+  .ship-bob { transform-origin: 270px 176px; animation: shipBob 7s ease-in-out infinite alternate; }
 
   /* Fenêtres (connexion, formulaires, confirmations) : ouverture en fondu avec léger zoom */
   @keyframes overlayIn { from { opacity: 0; } to { opacity: 1; } }
@@ -1931,7 +1931,7 @@ function App() {
                   <HeroShip />
                 </div>
               )}
-              <div className="relative z-10 max-w-2xl space-y-6">
+              <div className="relative z-10 max-w-2xl md:max-w-[48%] space-y-6">
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/15 text-orange-700 border border-orange-500/30 text-xs font-semibold tracking-wide">
                   <Sparkles className="w-3.5 h-3.5 text-orange-600" /> ARSTM
                 </span>
