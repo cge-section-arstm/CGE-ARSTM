@@ -2188,14 +2188,24 @@ function App() {
             </div>
 
             {/* NOTRE PARTENAIRE */}
-            <section aria-label="Notre partenaire" className="glass-card rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-center gap-5 sm:gap-8 text-center sm:text-left border border-orange-500/20">
-              <div className="rounded-3xl bg-white/70 border border-orange-500/20 shadow-lg shadow-orange-600/10 p-4 flex-shrink-0">
-                <img src={LOGO_SPONSOR_SRC} alt="Benianh International" className="w-40 sm:w-48 h-auto object-contain" draggable="false" />
-              </div>
-              <div className="space-y-1.5 min-w-0">
+            <section aria-label="Notre partenaire" className="glass-card rounded-3xl p-6 sm:p-8 text-center border border-orange-500/20">
+              <div className="max-w-2xl mx-auto space-y-4">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">Notre partenaire</p>
-                <p className="font-serif text-xl sm:text-2xl font-bold text-stone-900">Benianh International</p>
-                <p className="text-sm text-stone-600">Partenaire du Club CGE ARSTM.</p>
+                <div className="mx-auto w-fit rounded-3xl bg-white/70 border border-orange-500/20 shadow-lg shadow-orange-600/10 p-4">
+                  <img src={LOGO_SPONSOR_SRC} alt="Fondation Benianh International" className="w-40 sm:w-48 h-auto object-contain" draggable="false" />
+                </div>
+                <h3 className="font-serif text-xl sm:text-2xl font-bold text-stone-900">Fondation Benianh International</h3>
+                <p className="text-sm text-stone-600 leading-relaxed">
+                  Fondation ivoirienne créée en 1996 et reconnue d'utilité publique en 2012, elle œuvre pour la promotion de l'excellence et du mérite : bourses d'études, soutien aux associations d'étudiants et accompagnement des programmes de formation et d'emploi.
+                </p>
+                <ul className="flex flex-wrap justify-center gap-2 pt-1">
+                  {['Bourses d\'excellence', 'Soutien aux associations étudiantes', 'Formation & emploi'].map(t => (
+                    <li key={t} className="px-3 py-1.5 rounded-full bg-orange-500/10 border border-orange-500/25 text-xs font-semibold text-orange-700">{t}</li>
+                  ))}
+                </ul>
+                <a href="https://www.fondationbenianh.org/" target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm">
+                  <LinkIcon className="w-4 h-4" /> Visiter le site <span className="sr-only">(s'ouvre dans un nouvel onglet)</span>
+                </a>
               </div>
             </section>
           </div>
@@ -2816,9 +2826,9 @@ function App() {
             <div className="pt-6 border-t border-stone-200/70 text-center space-y-3">
               <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">Notre partenaire</p>
               <div className="mx-auto max-w-md rounded-3xl bg-white/70 border border-orange-500/20 shadow-lg shadow-orange-600/10 p-5">
-                <img src={LOGO_SPONSOR_SRC} alt="Benianh International — partenaire du Club CGE ARSTM" className="mx-auto w-full max-w-[18rem] h-auto object-contain" draggable="false" />
+                <img src={LOGO_SPONSOR_SRC} alt="Fondation Benianh International — partenaire du Club CGE ARSTM" className="mx-auto w-full max-w-[18rem] h-auto object-contain" draggable="false" />
               </div>
-              <p className="text-xs text-stone-500">Benianh International, partenaire du Club CGE ARSTM</p>
+              <p className="text-xs text-stone-500">Fondation Benianh International, partenaire du Club CGE ARSTM</p>
             </div>
           </div>
         )}
@@ -2912,7 +2922,7 @@ function App() {
         {activeTab !== 'accueil' && activeTab !== 'contact' && (
           <div className="flex items-center justify-center gap-2 pb-3">
             <span className="text-[11px] text-stone-500">En partenariat avec</span>
-            <img src={LOGO_SPONSOR_SRC} alt="Benianh International" className="h-9 w-auto object-contain" draggable="false" />
+            <img src={LOGO_SPONSOR_SRC} alt="Fondation Benianh International" className="h-9 w-auto object-contain" draggable="false" />
           </div>
         )}
         {activeTab === 'accueil' && (
