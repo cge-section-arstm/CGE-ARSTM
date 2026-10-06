@@ -6,6 +6,19 @@
 <title>CGE ARSTM — Conférence des Grandes Écoles</title>
 <meta name="description" content="Portail de la CGE ARSTM : actualités, bureau exécutif, activités, offres d'emplois et de stages, réseau alumni." />
 <meta name="theme-color" content="#EA580C" />
+<!-- Aperçu du lien (WhatsApp, Facebook...) -->
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="CGE ARSTM" />
+<meta property="og:locale" content="fr_FR" />
+<meta property="og:title" content="CGE ARSTM — Conférence des Grandes Écoles" />
+<meta property="og:description" content="Portail de la CGE ARSTM : actualités, bureau exécutif, activités, offres d'emplois et de stages, réseau alumni." />
+<meta property="og:url" content="https://darkfast942-bot.github.io/CGE-ARSTM/" />
+<meta property="og:image" content="https://darkfast942-bot.github.io/CGE-ARSTM/og-image.png" />
+<meta property="og:image:type" content="image/png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content="Logo du club CGE ARSTM" />
+<meta name="twitter:card" content="summary_large_image" />
 <!-- Sécurité : le navigateur ne charge des scripts que depuis ces CDN et ne parle qu'à Supabase. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src https://vpzxsksbzzbncqawzium.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -117,6 +130,17 @@
   @keyframes routePulse { 0% { transform: scale(1); opacity: 0.45; } 100% { transform: scale(3.2); opacity: 0; } }
   .route-pulse { transform-box: fill-box; transform-origin: center; animation: routePulse 3.2s ease-out infinite; }
 
+  /* Écran de chargement : visible tant que le site démarre */
+  #splash { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; font-family: Inter, system-ui, sans-serif; }
+  #splash img { width: 84px; height: auto; animation: splashPulse 2.4s ease-in-out infinite; }
+  #splash .splash-title { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-weight: 800; font-size: 1.7rem; color: #1c1917; letter-spacing: 0.02em; }
+  #splash .splash-bar { width: min(220px, 60vw); height: 4px; border-radius: 999px; background: rgba(234, 88, 12, 0.15); overflow: hidden; }
+  #splash .splash-bar span { display: block; width: 40%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #EA580C, #F59E0B); animation: splashSlide 1.3s ease-in-out infinite; }
+  #splash .splash-note { margin: 0; font-size: 0.8rem; color: #78716c; }
+  #splash-slow { margin: 0; max-width: 20rem; font-size: 0.75rem; color: #78716c; opacity: 0; transition: opacity 0.6s ease; }
+  @keyframes splashPulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.05); opacity: 1; } }
+  @keyframes splashSlide { from { transform: translateX(-100%); } to { transform: translateX(250%); } }
+
   /* Barre du bas : défilement horizontal sans barre visible */
   .no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
   .no-scrollbar::-webkit-scrollbar { display: none; }
@@ -129,6 +153,8 @@
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
     .hover-scale:hover, .glass-card.hover-scale:hover { transform: none; }
     .tab-fade, .wave-a, .wave-b, .compass-spin, .ship-bob, .route-flow, .route-pulse { animation: none; }
+    #splash img { animation: none; }
+    #splash .splash-bar span { animation: none; width: 100%; opacity: 0.5; }
     .fixed.inset-0.z-50, .fixed.inset-0.z-50 > .glass-card, .fixed.inset-0.z-50 > [role="dialog"], .fixed.inset-0.z-50 > [role="alertdialog"] { animation: none; }
     .reveal { opacity: 1; transform: none; }
   }
@@ -142,7 +168,22 @@
 </script>
 </head>
 <body class="pb-32">
-<div id="root"></div>
+<div id="root">
+  <div id="splash" role="status" aria-live="polite">
+    <img id="splash-logo" alt="" width="84" height="90" />
+    <p class="splash-title">CGE ARSTM</p>
+    <div class="splash-bar" aria-hidden="true"><span></span></div>
+    <p class="splash-note">Chargement du site…</p>
+    <p id="splash-slow">Le chargement est plus long que d'habitude. Vérifiez votre connexion ou rechargez la page.</p>
+  </div>
+</div>
+<script>
+  (function () {
+    var img = document.getElementById('splash-logo');
+    if (img && typeof LOGO_CGE_SRC !== 'undefined') img.src = LOGO_CGE_SRC;
+    setTimeout(function () { var n = document.getElementById('splash-slow'); if (n) n.style.opacity = '1'; }, 10000);
+  })();
+</script>
 <noscript><p style="padding:2rem;font-family:sans-serif">Ce site a besoin de JavaScript pour fonctionner.</p></noscript>
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
