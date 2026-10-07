@@ -1058,7 +1058,7 @@ const FeesButton = ({ m, onFees }) => m.fees_paid ? (
   <button type="button" onClick={() => onFees(m, true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-semibold shadow-md shadow-orange-600/25 whitespace-nowrap"><Check className="w-4 h-4" /> Valider (frais payés)</button>
 );
 
-const AdhesionPage = ({ onBack, adhesionOpen, isStaff, onToggle, toggling, rpc, candidates, onFees, fmt }) => {
+const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, toggling, rpc, candidates, onFees, fmt }) => {
   const emptyForm = { name: '', email: '', phone: '', filiere: ADHESION_FILIERES[0], niveau: niveauxPour(ADHESION_FILIERES[0])[0], website: '' };
   const [form, setForm] = useState(emptyForm);
   const [status, setStatus] = useState('idle'); // idle | sending | sent
@@ -1067,6 +1067,17 @@ const AdhesionPage = ({ onBack, adhesionOpen, isStaff, onToggle, toggling, rpc, 
   const sending = status === 'sending';
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (error) setError(''); };
   const inputClass = "w-full px-4 py-3 rounded-2xl bg-white/80 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-60";
+  const [days, setDays] = useState('7');
+  const [, setTick] = useState(0);
+  useEffect(() => { if (!adhesionEnds) return; const id = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(id); }, [adhesionEnds]);
+  const timeLeft = () => {
+    if (!adhesionEnds) return '';
+    const ms = Math.max(0, adhesionEnds - Date.now());
+    const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
+    if (d > 0) return `${d} jour${d > 1 ? 's' : ''} et ${h} h`;
+    if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`;
+    return `${Math.max(1, m)} min`;
+  };
 
   const submit = async () => {
     if (sending) return;
@@ -1111,6 +1122,7 @@ const AdhesionPage = ({ onBack, adhesionOpen, isStaff, onToggle, toggling, rpc, 
             <div>
               <h3 className="font-serif text-xl font-bold text-stone-900">Adhésions ouvertes</h3>
               <p className="text-sm text-stone-600">La session d'adhésion est lancée : remplissez le formulaire pour postuler.</p>
+              {adhesionEnds && <p className="text-xs font-semibold text-emerald-700 mt-1">Ouvertes jusqu'au {fmt(adhesionEnds)} · il reste {timeLeft()}</p>}
             </div>
           </div>
           {status === 'sent' ? (
@@ -1166,11 +1178,20 @@ const AdhesionPage = ({ onBack, adhesionOpen, isStaff, onToggle, toggling, rpc, 
         <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-5 flex flex-wrap items-center justify-between gap-3">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">Secrétariat et admins</p>
-            <p className="text-sm text-stone-700">{adhesionOpen ? "Les demandes d'adhésion sont ouvertes au public." : "Les demandes d'adhésion sont fermées au public."}</p>
+            <p className="text-sm text-stone-700">{adhesionOpen ? (adhesionEnds ? `Les demandes d'adhésion sont ouvertes au public jusqu'au ${fmt(adhesionEnds)} (fermeture automatique, il reste ${timeLeft()}).` : "Les demandes d'adhésion sont ouvertes au public (fermeture manuelle).") : "Les demandes d'adhésion sont fermées au public."}</p>
           </div>
-          <button type="button" onClick={onToggle} disabled={toggling} className={`px-5 py-2.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${adhesionOpen ? 'bg-stone-800' : 'bg-orange-600'}`}>
-            {toggling ? 'Patientez…' : adhesionOpen ? 'Fermer les demandes' : "Lancer les demandes d'adhésion"}
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            {!adhesionOpen && (
+              <label className="flex items-center gap-2 text-xs font-semibold text-stone-700">
+                Durée
+                <input type="number" min="1" max="90" inputMode="numeric" value={days} onChange={e => setDays(e.target.value)} disabled={toggling} className="w-16 px-2 py-2 rounded-xl bg-white border border-stone-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500" aria-label="Durée d'ouverture en jours" />
+                jours
+              </label>
+            )}
+            <button type="button" onClick={() => onToggle(Number(days) || 7)} disabled={toggling} className={`px-5 py-2.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${adhesionOpen ? 'bg-stone-800' : 'bg-orange-600'}`}>
+              {toggling ? 'Patientez…' : adhesionOpen ? 'Fermer les demandes' : "Lancer les demandes d'adhésion"}
+            </button>
+          </div>
         </div>
       )}
 
@@ -1301,6 +1322,7 @@ function App() {
   const [openMessages, setOpenMessages] = useState({});
   const [adhesionOpen, setAdhesionOpen] = useState(null); // null = pas encore connu
   const [adhesionBusy, setAdhesionBusy] = useState(false);
+  const [adhesionEnds, setAdhesionEnds] = useState(null); // timestamp (ms) de fermeture automatique, ou null
   const [cgeApplyJob, setCgeApplyJob] = useState(null);
   const [cgeLetter, setCgeLetter] = useState(null);
   const [cgeApplyError, setCgeApplyError] = useState('');
@@ -1731,22 +1753,51 @@ function App() {
   };
   // ---------- Adhésions : page « Devenir nouveau membre » (hors barre du bas, ouverte par les boutons) ----------
   const goToAdhesion = () => { setActiveTab('adhesion'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
-  // Session ouverte ou fermée (script supabase_adhesion.sql)
+  // Session ouverte ou fermée, avec fermeture automatique (scripts supabase_adhesion.sql + supabase_adhesion_duree.sql)
+  const applyAdhesionState = (r) => {
+    const open = !!(r && r.open);
+    setAdhesionOpen(open);
+    // Durée restante calculée par le serveur : indépendante de l'horloge du téléphone
+    setAdhesionEnds(open && r && r.seconds_left != null ? Date.now() + Number(r.seconds_left) * 1000 : null);
+  };
   useEffect(() => {
     let alive = true;
-    rpc('cge_adhesion_status')
-      .then(r => { if (alive) setAdhesionOpen(!!(r && r.open)); })
-      .catch(() => { if (alive) setAdhesionOpen(false); });
+    rpc('cge_adhesion_state')
+      .then(r => { if (alive) applyAdhesionState(r); })
+      .catch(e => {
+        if (e && e.code === 'PGRST202') {
+          // Script de durée pas encore installé : ancien fonctionnement (ouvert / fermé à la main)
+          rpc('cge_adhesion_status')
+            .then(r => { if (alive) { setAdhesionOpen(!!(r && r.open)); setAdhesionEnds(null); } })
+            .catch(() => { if (alive) setAdhesionOpen(false); });
+        } else if (alive) setAdhesionOpen(false);
+      });
     return () => { alive = false; };
   }, []);
-  const toggleAdhesion = async () => {
+  // Fermeture automatique à l'écran quand la date limite est atteinte
+  useEffect(() => {
+    if (!adhesionOpen || !adhesionEnds) return;
+    const id = setInterval(() => { if (Date.now() >= adhesionEnds) { setAdhesionOpen(false); setAdhesionEnds(null); } }, 15000);
+    return () => clearInterval(id);
+  }, [adhesionOpen, adhesionEnds]);
+  const toggleAdhesion = async (days = 7) => {
     const next = !adhesionOpen;
-    if (!window.confirm(next ? "Lancer les demandes d'adhésion ? Tout le monde pourra postuler en ligne." : "Fermer les demandes d'adhésion ?")) return;
+    const nbDays = Math.max(1, Math.min(90, Math.round(Number(days) || 7)));
+    const endLabel = fmtDateTime(Date.now() + nbDays * 86400000);
+    if (!window.confirm(next ? `Lancer les demandes d'adhésion pour ${nbDays} jour${nbDays > 1 ? 's' : ''} (${nbDays * 24} heures) ?\nElles se fermeront automatiquement le ${endLabel}.` : "Fermer les demandes d'adhésion ?")) return;
     setAdhesionBusy(true);
     try {
-      await authRpc('cge_adhesion_set', { p_open: next });
-      setAdhesionOpen(next);
-      showToastMsg(next ? "Les demandes d'adhésion sont ouvertes." : "Les demandes d'adhésion sont fermées.", 'success');
+      let r;
+      try {
+        r = next ? await authRpc('cge_adhesion_open', { p_days: nbDays }) : await authRpc('cge_adhesion_close');
+      } catch (e) {
+        if (!(e && e.code === 'PGRST202')) throw e;
+        // Script de durée pas encore installé : on garde l'ancien interrupteur
+        await authRpc('cge_adhesion_set', { p_open: next });
+        r = { open: next, seconds_left: null };
+      }
+      applyAdhesionState(r);
+      showToastMsg(next ? (r && r.seconds_left != null ? `Les demandes d'adhésion sont ouvertes pour ${nbDays} jour${nbDays > 1 ? 's' : ''}.` : "Les demandes d'adhésion sont ouvertes.") : "Les demandes d'adhésion sont fermées.", 'success');
     } catch (e) {
       showToastMsg('Modification impossible : ' + ((e && e.code === 'PGRST202') ? "le script supabase_adhesion.sql n'est pas encore installé (Supabase > SQL Editor)." : explainDbError(e)), 'error');
     } finally { setAdhesionBusy(false); }
@@ -3498,7 +3549,7 @@ function App() {
         )}
 
         {/* DEVENIR NOUVEAU MEMBRE (page ouverte depuis l'accueil) */}
-        {activeTab === 'adhesion' && <AdhesionPage onBack={() => { setActiveTab('accueil'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} adhesionOpen={adhesionOpen} isStaff={isStaffLoggedIn} onToggle={toggleAdhesion} toggling={adhesionBusy} rpc={rpc} candidates={isStaffLoggedIn ? (inbox === null ? null : inbox.filter(x => x.subject === 'Adhésion')) : []} onFees={setMessageFees} fmt={fmtDateTime} />}
+        {activeTab === 'adhesion' && <AdhesionPage onBack={() => { setActiveTab('accueil'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} adhesionOpen={adhesionOpen} adhesionEnds={adhesionEnds} isStaff={isStaffLoggedIn} onToggle={toggleAdhesion} toggling={adhesionBusy} rpc={rpc} candidates={isStaffLoggedIn ? (inbox === null ? null : inbox.filter(x => x.subject === 'Adhésion')) : []} onFees={setMessageFees} fmt={fmtDateTime} />}
 
         {/* MESSAGES VIEW (secrétariat & admins) */}
         {activeTab === 'messages' && isStaffLoggedIn && (() => {
