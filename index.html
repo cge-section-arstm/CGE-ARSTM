@@ -203,6 +203,7 @@ const Icon = ({ children, className = "w-5 h-5" }) => (
   </svg>
 );
 const History = (p) => <Icon {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.5-6" /><path d="M3.5 4v4h4" /><path d="M12 7.5V12l3 2" /></Icon>;
+const Clock = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></Icon>;
 const ScrollText = (p) => <Icon {...p}><path d="M8 3.5h9.5A2.5 2.5 0 0 1 20 6v12.5a2 2 0 0 1-2 2H8" /><path d="M8 3.5A2.5 2.5 0 0 0 5.5 6v12.5a2 2 0 0 0 2 2" /><path d="M10 8.5h6M10 12h6M10 15.5h4" /></Icon>;
 const LinkIcon = (p) => <Icon {...p}><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1.2 1.2" /><path d="M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1.2-1.2" /></Icon>;
 const Home = (p) => <Icon {...p}><path d="M3 11.5 12 4l9 7.5" /><path d="M5 10v10h14V10" /><path d="M9.5 20v-6h5v6" /></Icon>;
@@ -390,7 +391,8 @@ const RESOURCE_CONFIGS = {
     fields: [
       { key: 'visibility', label: 'Visible par', type: 'select', options: [{ value: 'public', label: 'Tout le monde (visiteurs)' }, { value: 'membres', label: 'Membres connectés uniquement' }], required: true },
       { key: 'title', label: "Titre de l'actualité", type: 'text', required: true },
-      { key: 'date', label: 'Date (ex. 24 Septembre 2026)', type: 'text', required: true },
+      { key: 'date', label: 'Date (ex. 24 Septembre 2026, ou 24 Septembre 2026 à 18h30)', type: 'text', required: true },
+      { key: 'countdown', label: 'Compte à rebours', type: 'countdown', required: false },
       { key: 'content', label: 'Contenu (les adresses web écrites ici deviennent cliquables)', type: 'textarea', required: true },
       { key: 'link', label: 'Lien à partager (ex. https://...)', type: 'url', required: false },
       { key: 'link_label', label: 'Texte du bouton (facultatif, ex. Lire l’article, Voir la vidéo)', type: 'text', required: false },
@@ -568,14 +570,155 @@ const HeroShip = () => (
   </svg>
 );
 
+// ---------- Compte à rebours des actualités ----------
+// Le choix « avec compte à rebours » est gardé dans le texte de la date (suffixe), puis retiré à l'affichage.
+const CD_MARK = ' [compte à rebours]';
+const splitCountdown = (raw) => {
+  const t = String(raw || '');
+  return t.endsWith(CD_MARK) ? { text: t.slice(0, -CD_MARK.length), flag: true } : { text: t, flag: false };
+};
+const FR_MONTHS = ['jan', 'fev', 'mar', 'avr', 'mai', 'juin', 'juil', 'aou', 'sep', 'oct', 'nov', 'dec'];
+// Lit « 24 Septembre 2026 », « 24 Septembre 2026 à 18h30 » ou « 24/09/2026 18:30 ». Sans heure : début de la journée.
+const parseFrenchDate = (raw) => {
+  const t = String(raw || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  let d, mo, y, rest;
+  let m = t.match(/(\d{1,2})(?:er)?\s+([a-z]+)\.?\s+(\d{4})(.*)$/);
+  if (m) {
+    mo = FR_MONTHS.findIndex(p => m[2].startsWith(p));
+    d = +m[1]; y = +m[3]; rest = m[4];
+  } else {
+    m = t.match(/(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})(.*)$/);
+    if (!m) return null;
+    d = +m[1]; mo = +m[2] - 1; y = +m[3]; rest = m[4];
+  }
+  const tm = rest.match(/(\d{1,2})\s*(?:h|:)\s*(\d{2})?/);
+  const hh = tm ? +tm[1] : 0;
+  const mi = tm && tm[2] ? +tm[2] : 0;
+  if (mo < 0 || mo > 11 || d < 1 || d > 31 || hh > 23 || mi > 59) return null;
+  const dt = new Date(y, mo, d, hh, mi, 0);
+  if (dt.getMonth() !== mo) return null; // date impossible (ex. 30 février)
+  return { date: dt, hasTime: !!tm };
+};
+// En jours, puis en heures et minutes quand il reste moins de 24 h
+const countdownInfo = (rawDate, now) => {
+  const p = parseFrenchDate(splitCountdown(rawDate).text);
+  if (!p) return null;
+  const DAY = 86400000, HOUR = 3600000, MIN = 60000;
+  const ms = p.date.getTime() - now;
+  if (ms <= 0) return (!p.hasTime && now < p.date.getTime() + DAY) ? { text: "C'est aujourd'hui" } : null;
+  if (ms >= 2 * DAY) return { text: `Dans ${Math.floor(ms / DAY)} jours` };
+  if (ms >= DAY) return { text: 'Dans 1 jour' };
+  const h = Math.floor(ms / HOUR), mn = Math.floor((ms % HOUR) / MIN);
+  if (h >= 1) return { text: `Dans ${h} h ${String(mn).padStart(2, '0')} min` };
+  return { text: `Dans ${Math.max(1, mn)} min` };
+};
+const CountdownPill = ({ date }) => {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
+  const info = countdownInfo(date, now);
+  if (!info) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5 bg-orange-600 text-white px-3 py-1 rounded-full text-[11px] font-bold">
+      <Clock className="w-3.5 h-3.5" /> {info.text}
+    </span>
+  );
+};
+
+// Petits dessins minimalistes (une scène par mission) : traits volontairement inachevés, comme un croquis
+const ART_INK = '#0c2a4a', ART_ACC = '#EA580C', ART_SOFT = '#FDBA74';
+const ArtFrame = ({ children }) => (
+  <svg viewBox="0 0 200 140" className="h-full w-auto" aria-hidden="true" focusable="false">
+    <circle cx="100" cy="72" r="60" fill="#FFEDD5" />
+    <g stroke={ART_INK} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">{children}</g>
+  </svg>
+);
+// Bonhomme : tête ronde ouverte, corps avec des contours qui ne se ferment pas, membres détachés
+const ArtFig = ({ x, y, s = 1, children }) => (
+  <g transform={`translate(${x} ${y}) scale(${0.88 * s})`}>
+    <path d="M-11 25Q0 19 11 25L10 53H-10Z" fill={ART_SOFT} stroke="none" transform="translate(4 3)" />
+    <path d="M9.8 -6.9A12 12 0 1 1 2.1 -11.8" />
+    <path d="M-13 23Q-4 17 6 18.5" />
+    <path d="M-13 23C-15 35-14 46-12 56M13 23C15 32 14 38 13 42M12 49L11 54" />
+    <path d="M-12 56H-1M5 56H11" />
+    <path d="M-6 63L-8 94M6 63L8 90M-8 94H-15M8 90H15" />
+    {children}
+  </g>
+);
+// Représentation : un bonhomme avec un haut-parleur
+const ArtRepresentation = () => (
+  <ArtFrame>
+    <ArtFig x={78} y={40}>
+      <path d="M-17 26L-26 48M17 26L38 14" />
+      <rect x="34" y="9" width="7" height="12" rx="2" fill={ART_SOFT} />
+      <path d="M40 8V22L66 34V-4Z" fill={ART_ACC} />
+      <path d="M76 2q10 16 0 32M88 -8q16 26 0 52" stroke={ART_ACC} />
+    </ArtFig>
+  </ArtFrame>
+);
+// Événements : fanions, bras en l'air, confettis
+const ArtEvenements = () => (
+  <ArtFrame>
+    <path d="M20 8Q100 28 180 8" />
+    <g stroke="none">
+      <path d="M46 14L58 14L52 27Z" fill={ART_ACC} />
+      <path d="M78 17L90 17L84 30Z" fill={ART_SOFT} />
+      <path d="M110 17L122 17L116 30Z" fill={ART_ACC} />
+      <path d="M142 14L154 14L148 27Z" fill={ART_SOFT} />
+      <circle cx="42" cy="74" r="3.5" fill={ART_ACC} />
+      <circle cx="160" cy="66" r="3" fill={ART_SOFT} />
+      <rect x="28" y="98" width="7" height="7" rx="1.5" fill={ART_SOFT} transform="rotate(20 31 101)" />
+      <rect x="166" y="96" width="7" height="7" rx="1.5" fill={ART_ACC} transform="rotate(-18 169 99)" />
+    </g>
+    <ArtFig x={100} y={52}><path d="M-17 26L-36 8M17 26L36 8" /></ArtFig>
+  </ArtFrame>
+);
+// Carrière : une mallette et une flèche qui monte
+const ArtCarriere = () => (
+  <ArtFrame>
+    <path d="M130 108L152 86L164 96L188 64" stroke={ART_ACC} strokeWidth="4.5" />
+    <path d="M176 64H188V76" stroke={ART_ACC} strokeWidth="4.5" />
+    <ArtFig x={76} y={38}>
+      <path d="M-17 26L-28 46M17 26L34 46" />
+      <path d="M31 46v-6h16v6" />
+      <rect x="22" y="46" width="34" height="24" rx="4" fill={ART_ACC} />
+    </ArtFig>
+  </ArtFrame>
+);
+// Mentorat : un grand qui guide un plus petit, avec une idée
+const ArtMentorat = () => (
+  <ArtFrame>
+    <ArtFig x={66} y={36}><path d="M-17 26L-26 46M17 26L42 12" /></ArtFig>
+    <ArtFig x={130} y={54} s={0.8}><path d="M-17 26L-26 44M17 26L26 8" /></ArtFig>
+    <circle cx="130" cy="26" r="10" fill={ART_SOFT} />
+    <path d="M125 39h10M127 44h6" />
+    <path d="M130 6V10M146 14l-3 3M114 14l3 3M152 28h-4M108 28h4" stroke={ART_ACC} />
+  </ArtFrame>
+);
+// Entraide : deux bonhommes main dans la main
+const ArtEntraide = () => (
+  <ArtFrame>
+    <ArtFig x={70} y={42}><path d="M-17 26L-26 46M17 26L34 46" /></ArtFig>
+    <ArtFig x={130} y={42}><path d="M17 26L26 46M-17 26L-34 46" /></ArtFig>
+    <path d="M100 27C85 17 89 3 100 10C111 3 115 17 100 27Z" fill={ART_ACC} stroke="none" />
+  </ArtFrame>
+);
+// Rayonnement : une étoile qui brille
+const ArtRayonnement = () => (
+  <ArtFrame>
+    <path d="M100 11L103.8 20.7L114.3 21.6L106.2 28L108.8 38.4L100 32.5L91.2 38.4L93.8 28L85.7 21.6L96.2 20.7Z" fill={ART_ACC} stroke="none" />
+    <path d="M100 0V5M124 8L121 12M76 8L79 12M132 28H127M68 28H73" stroke={ART_ACC} />
+    <ArtFig x={100} y={52}><path d="M-17 26L-30 6M17 26L30 6" /></ArtFig>
+  </ArtFrame>
+);
+
 // Ce que fait la CGE (section de l'accueil)
 const CGE_MISSIONS = [
-  { title: 'Représentation', text: "Votre voix est portée auprès de la direction et des partenaires.", icon: Users },
-  { title: 'Événements', text: "Conférences, culture et moments de partage.", icon: Calendar },
-  { title: 'Carrière', text: "Stages, emploi, formations et bourses.", icon: Briefcase },
-  { title: 'Mentorat', text: "Un ancien de l'ARSTM pour vous conseiller sur votre parcours.", icon: GraduationCap },
-  { title: 'Entraide', text: "Parrainage des nouveaux et soutien entre promotions.", icon: Heart },
-  { title: 'Rayonnement', text: "Faire briller l'ARSTM dans toute la sous-région.", icon: Sparkles },
+  { title: 'Représentation', text: "Votre voix est portée auprès de la direction et des partenaires.", art: ArtRepresentation },
+  { title: 'Événements', text: "Conférences, culture et moments de partage.", art: ArtEvenements },
+  { title: 'Carrière', text: "Stages, emploi, formations et bourses.", art: ArtCarriere },
+  { title: 'Mentorat', text: "Un ancien de l'ARSTM pour vous conseiller sur votre parcours.", art: ArtMentorat },
+  { title: 'Entraide', text: "Parrainage des nouveaux et soutien entre promotions.", art: ArtEntraide },
+  { title: 'Rayonnement', text: "Faire briller l'ARSTM dans toute la sous-région.", art: ArtRayonnement },
 ];
 
 function App() {
@@ -1476,6 +1619,7 @@ function App() {
     const config = RESOURCE_CONFIGS[type];
     const values = {};
     config.fields.forEach(f => { values[f.key] = item[f.key] || (f.type === 'select' ? optValue(f.options[0]) : ''); });
+    if (config.fields.some(f => f.type === 'countdown')) { const sp = splitCountdown(item.date); values.date = sp.text; values.countdown = sp.flag; }
     setResourcePhotoStatus('');
     setResourceForm(values);
     setResourceModal({ type, editingId: item.id });
@@ -1519,6 +1663,11 @@ function App() {
 
     const payload = {};
     config.fields.forEach(f => { payload[f.key] = typeof resourceForm[f.key] === 'string' ? resourceForm[f.key].trim() : resourceForm[f.key]; });
+    if (type === 'news') {
+      const pd = parseFrenchDate(payload.date);
+      payload.date = payload.date + (payload.countdown && pd && pd.date.getTime() > Date.now() ? CD_MARK : '');
+    }
+    delete payload.countdown;
     for (const f of config.fields) {
       if (f.type === 'url' && payload[f.key]) {
         const clean = normalizeUrl(payload[f.key]);
@@ -1636,7 +1785,7 @@ function App() {
         </div>
       )}
       <div className={`flex justify-between items-center text-xs font-semibold ${isAdminLoggedIn ? 'pr-20' : ''}`}>
-        <span className="flex flex-wrap items-center gap-2"><span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{item.date}</span>{isMembersNews(item) && <span className="inline-flex items-center gap-1 bg-stone-900 text-white px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wide"><Key className="w-3 h-3 text-orange-400" /> Membres</span>}</span>
+        <span className="flex flex-wrap items-center gap-2"><span className="bg-orange-500/10 text-orange-700 px-3 py-1 rounded-full border border-orange-500/20">{splitCountdown(item.date).text}</span>{splitCountdown(item.date).flag && <CountdownPill date={item.date} />}{isMembersNews(item) && <span className="inline-flex items-center gap-1 bg-stone-900 text-white px-2.5 py-1 rounded-full text-[10px] uppercase tracking-wide"><Key className="w-3 h-3 text-orange-400" /> Membres</span>}</span>
         {(() => {
           const liked = hasLiked(item.id);
           const count = likeCount(item.id);
@@ -2034,12 +2183,27 @@ function App() {
             <div role="dialog" aria-modal="true" aria-labelledby="resource-title" className="glass-card w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-3xl p-7 space-y-5 relative" onClick={e => e.stopPropagation()}>
               <button onClick={closeResourceModal} aria-label="Fermer" className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"><X className="w-5 h-5" /></button>
               <div><h3 id="resource-title" className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
-              <div className="space-y-3">{config.fields.map(field => (
-                <div key={field.key} className="space-y-1.5">
-                  <label htmlFor={`field-${field.key}`} className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
-                  {renderField(field)}
-                </div>
-              ))}</div>
+              <div className="space-y-3">{config.fields.map(field => {
+                if (field.type === 'countdown') {
+                  const pd = parseFrenchDate(resourceForm.date);
+                  if (!pd || pd.date.getTime() <= Date.now()) return null;
+                  return (
+                    <label key={field.key} htmlFor="field-countdown" className="flex items-start gap-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4 cursor-pointer">
+                      <input id="field-countdown" type="checkbox" checked={!!resourceForm.countdown} onChange={e => setField('countdown', e.target.checked)} className="mt-1 w-4 h-4 accent-orange-600" />
+                      <span className="text-sm text-stone-700">
+                        <strong className="text-stone-900">Afficher un compte à rebours ?</strong><br />
+                        Il compte en jours, puis en heures quand il reste moins de 24 h.{!pd.hasTime && ' Ajoutez une heure dans la date (ex. « à 18h30 ») pour un décompte précis le dernier jour.'}
+                      </span>
+                    </label>
+                  );
+                }
+                return (
+                  <div key={field.key} className="space-y-1.5">
+                    <label htmlFor={`field-${field.key}`} className="text-xs font-semibold text-stone-600">{field.label}{field.required ? ' *' : ''}</label>
+                    {renderField(field)}
+                  </div>
+                );
+              })}</div>
               <button onClick={handleSaveResource} disabled={isSavingResource} className="w-full py-3 rounded-2xl bg-orange-600 text-white font-semibold disabled:opacity-60">{isSavingResource ? 'Enregistrement...' : resourceModal.editingId !== null ? 'Enregistrer les modifications' : 'Ajouter'}</button>
             </div>
           </div>
@@ -2145,11 +2309,11 @@ function App() {
               </div>
               <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
                 {CGE_MISSIONS.map(m => {
-                  const Ic = m.icon;
+                  const Art = m.art;
                   return (
                     <div key={m.title} className="glass-card hover-scale rounded-3xl p-5 sm:p-6 space-y-3">
-                      <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center">
-                        <Ic className="w-5 h-5 text-orange-600" />
+                      <div className="h-36 rounded-2xl bg-orange-50/60 border border-orange-500/10 flex items-center justify-center overflow-hidden">
+                        <Art />
                       </div>
                       <h4 className="font-serif text-lg font-bold text-stone-900">{m.title}</h4>
                       <p className="text-sm text-stone-600 leading-relaxed">{m.text}</p>
