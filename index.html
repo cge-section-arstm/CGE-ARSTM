@@ -243,6 +243,7 @@ const LogOut = (p) => <Icon {...p}><path d="M9 4H5.5A1.5 1.5 0 0 0 4 5.5v13A1.5 
 const Sparkles = (p) => <Icon {...p}><path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6Z" /><path d="M19 15l.7 2 2 .7-2 .7-.7 2-.7-2-2-.7 2-.7Z" /></Icon>;
 const Trash = (p) => <Icon {...p}><path d="M4 7h16" /><path d="M9 7V5a1.5 1.5 0 0 1 1.5-1.5h3A1.5 1.5 0 0 1 15 5v2" /><path d="M6.5 7l.8 12a2 2 0 0 0 2 1.9h5.4a2 2 0 0 0 2-1.9l.8-12" /><path d="M10 11v6M14 11v6" /></Icon>;
 const Plus = (p) => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>;
+const Download = (p) => <Icon {...p}><path d="M12 4v11" /><path d="m7.5 11 4.5 4.5 4.5-4.5" /><path d="M4.5 19.5h15" /></Icon>;
 const Pencil = (p) => <Icon {...p}><path d="M16.5 4.5a2.1 2.1 0 0 1 3 3L7 20l-4 1 1-4Z" /><path d="M14.5 6.5l3 3" /></Icon>;
 const ShieldCheck = (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></Icon>;
 const RefreshCw = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></Icon>;
@@ -403,9 +404,9 @@ const initialContacts = [
 ];
 
 const initialGallery = [
-  { id: 1, title: "Cérémonie de Remise des Galons", category: "Événements", image: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=600" },
-  { id: 2, title: "Atelier Pratique en Simulateur Naval", category: "Formation", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=600" },
-  { id: 3, title: "Journée Sportive Inter-Filières", category: "Vie Étudiante", image: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&q=80&w=600" }
+  { id: 1, placeholder: true, title: "Cérémonie de Remise des Galons", category: "Événements", image: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?auto=format&fit=crop&q=80&w=600" },
+  { id: 2, placeholder: true, title: "Atelier Pratique en Simulateur Naval", category: "Formation", image: "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&q=80&w=600" },
+  { id: 3, placeholder: true, title: "Journée Sportive Inter-Filières", category: "Vie Étudiante", image: "https://images.unsplash.com/photo-1517649763962-0c623266ddc0?auto=format&fit=crop&q=80&w=600" }
 ];
 
 // membersOnly : rubrique chargée via le serveur, seulement pour les personnes connectées.
@@ -741,12 +742,13 @@ const ArtMentorat = () => (
     <path d="M130 6V10M146 14l-3 3M114 14l3 3M152 28h-4M108 28h4" stroke={ART_ACC} />
   </ArtFrame>
 );
-// Entraide : deux bonhommes main dans la main
+// Entraide : un ancien tend la main à un plus jeune pour le faire monter sur la marche
 const ArtEntraide = () => (
   <ArtFrame>
-    <ArtFig x={70} y={42}><path d="M-17 26L-26 46M17 26L34 46" /></ArtFig>
-    <ArtFig x={130} y={42}><path d="M17 26L26 46M-17 26L-34 46" /></ArtFig>
-    <path d="M100 27C85 17 89 3 100 10C111 3 115 17 100 27Z" fill={ART_ACC} stroke="none" />
+    <path d="M22 122H100V108H178V128H22Z" fill={ART_SOFT} stroke="none" />
+    <path d="M22 122H100V108H178" />
+    <ArtFig x={130} y={25}><path d="M-17 26L-36 44M17 26L26 46" /></ArtFig>
+    <ArtFig x={66} y={47.6} s={0.9}><path d="M17 26L40 21M-17 26L-26 44" /></ArtFig>
   </ArtFrame>
 );
 // Rayonnement : une étoile qui brille
@@ -1049,6 +1051,51 @@ const ADHESION_STEPS = [
   ['Confirmation', 'Bienvenue au club ! Recevez votre matricule de membre officiel.'],
 ];
 
+// ---------- Export Excel (.xlsx) sans bibliothèque : archive ZIP « stockée » écrite à la main ----------
+const CRC_TABLE = (() => { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+const crc32 = (u8) => { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC_TABLE[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; };
+const zipStore = (files) => {
+  const enc = new TextEncoder(), chunks = [], central = [];
+  let offset = 0;
+  const u16 = (n) => [n & 255, (n >>> 8) & 255], u32 = (n) => [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255];
+  files.forEach(f => {
+    const name = enc.encode(f.name), data = enc.encode(f.text), crc = crc32(data);
+    const local = new Uint8Array([0x50, 0x4B, 3, 4, ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0)]);
+    chunks.push(local, name, data);
+    central.push(new Uint8Array([0x50, 0x4B, 1, 2, ...u16(20), ...u16(20), ...u16(0x0800), ...u16(0), ...u16(0), ...u16(0x21), ...u32(crc), ...u32(data.length), ...u32(data.length), ...u16(name.length), ...u16(0), ...u16(0), ...u16(0), ...u16(0), ...u32(0), ...u32(offset)]), name);
+    offset += local.length + name.length + data.length;
+  });
+  const cdSize = central.reduce((n, c) => n + c.length, 0);
+  const end = new Uint8Array([0x50, 0x4B, 5, 6, ...u16(0), ...u16(0), ...u16(files.length), ...u16(files.length), ...u32(cdSize), ...u32(offset), ...u16(0)]);
+  return new Blob([...chunks, ...central, end], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+};
+const xmlEsc = (v) => String(v).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+const colName = (i) => String.fromCharCode(65 + i);
+// rows : tableau de lignes (la première = en-têtes) ; widths : largeur de chaque colonne
+const buildXlsx = (sheetName, rows, widths) => {
+  const NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+  const sheetData = rows.map((row, r) => `<row r="${r + 1}">` + row.map((v, c) => {
+    const ref = colName(c) + (r + 1), st = r === 0 ? ' s="1"' : '';
+    return typeof v === 'number' ? `<c r="${ref}"${st}><v>${v}</v></c>` : `<c r="${ref}"${st} t="inlineStr"><is><t xml:space="preserve">${xmlEsc(v)}</t></is></c>`;
+  }).join('') + '</row>').join('');
+  const last = colName(rows[0].length - 1) + rows.length;
+  const sheet = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="${NS}"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews><cols>${widths.map((w, i) => `<col min="${i + 1}" max="${i + 1}" width="${w}" customWidth="1"/>`).join('')}</cols><sheetData>${sheetData}</sheetData><autoFilter ref="A1:${last}"/></worksheet>`;
+  const styles = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="${NS}"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><color rgb="FFFFFFFF"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFEA580C"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="2"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="center"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>`;
+  const R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+  return zipStore([
+    { name: '[Content_Types].xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>` },
+    { name: '_rels/.rels', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/officeDocument" Target="xl/workbook.xml"/></Relationships>` },
+    { name: 'xl/workbook.xml', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="${NS}" xmlns:r="${R}"><sheets><sheet name="${xmlEsc(sheetName)}" sheetId="1" r:id="rId1"/></sheets></workbook>` },
+    { name: 'xl/_rels/workbook.xml.rels', text: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R}/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="${R}/styles" Target="styles.xml"/></Relationships>` },
+    { name: 'xl/styles.xml', text: styles },
+    { name: 'xl/worksheets/sheet1.xml', text: sheet },
+  ]);
+};
+const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob), a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+};
 const parseAdhesion = (m) => {
   const get = (re) => { const x = String(m.message || '').match(re); return x ? x[1].trim() : ''; };
   return { section: get(/(?:Section|Filière) : (.*)/), niveau: get(/Niveau : (.*)/), phone: get(/Téléphone : (.*)/) };
@@ -1082,6 +1129,16 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, o
   const [days, setDays] = useState('7');
   const [, setTick] = useState(0);
   useEffect(() => { if (!adhesionEnds) return; const id = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(id); }, [adhesionEnds]);
+  const exportExcel = () => {
+    if (!candidates || !candidates.length) return;
+    const rows = [['N°', 'Nom complet', 'Email', 'Téléphone', 'Section', 'Niveau', 'Reçue le', "Frais d'inscription"]];
+    candidates.forEach((c, i) => {
+      const info = parseAdhesion(c);
+      rows.push([i + 1, c.name || '', c.email || '', info.phone, info.section, info.niveau, c.created_at ? fmt(c.created_at) : '', c.fees_paid ? 'Payés' : 'En attente']);
+    });
+    const d = new Date(), pad = n => String(n).padStart(2, '0');
+    downloadBlob(buildXlsx('Candidatures', rows, [6, 30, 30, 20, 24, 14, 28, 18]), `candidatures-adhesion-${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}.xlsx`);
+  };
   const timeLeft = () => (adhesionEnds ? formatTimeLeft(adhesionEnds - Date.now()) : '');
   const urgent = !!adhesionOpen && !!adhesionEnds && (adhesionEnds - Date.now()) <= ADHESION_URGENT_MS;
 
@@ -1242,6 +1299,9 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, o
               <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">Secrétariat et admins</p>
               <h3 className="font-serif text-xl font-bold text-stone-900">Candidatures reçues{candidates ? ` (${candidates.length})` : ''}</h3>
             </div>
+            {candidates && candidates.length > 0 && (
+              <button type="button" onClick={exportExcel} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600"><Download className="w-4 h-4" /> Exporter en Excel</button>
+            )}
             {candidates && candidates.length > 0 && <p className="text-xs font-semibold text-stone-500">{candidates.filter(c => c.fees_paid).length} validée{candidates.filter(c => c.fees_paid).length > 1 ? 's' : ''} sur {candidates.length}</p>}
           </div>
           <p className="text-xs text-stone-500">Cliquez sur « Valider » quand le candidat a réglé ses frais d'inscription : il peut alors recevoir son formulaire.</p>
@@ -1403,6 +1463,13 @@ function App() {
   const [jobs, setJobs] = useState([]);
   const [alumni, setAlumni] = useState([]);
   const [gallery, setGallery] = useState(initialGallery);
+  const [lightbox, setLightbox] = useState(null); // photo ouverte en grand sur l'accueil
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e) => { if (e.key === 'Escape') setLightbox(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [lightbox]);
   const [events, setEvents] = useState(initialEvents);
   const [registre, setRegistre] = useState([]);
   const [contacts, setContacts] = useState(initialContacts);
@@ -3092,6 +3159,43 @@ function App() {
               </div>
             </section>
 
+            {/* EN IMAGES : dernières photos de la médiathèque */}
+            {(() => {
+              const homePhotos = gallery.filter(g => g && g.image && !g.placeholder).slice(-6).reverse();
+              if (homePhotos.length === 0 && !canEdit('gallery')) return null;
+              return (
+                <section aria-label="Photos des événements" className="space-y-6">
+                  <div className="text-center space-y-2">
+                    <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">En images</p>
+                    <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">La vie de la CGE en photos</h3>
+                  </div>
+                  {homePhotos.length === 0 ? (
+                    <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-6 text-center space-y-3">
+                      <p className="text-sm text-stone-700">Aucune photo pour le moment. Ajoutez celles de vos événements : elles apparaîtront ici pour tous les visiteurs.</p>
+                      <button type="button" onClick={() => openAddResource('gallery')} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"><Plus className="w-4 h-4" /> Ajouter une photo</button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3 sm:gap-4">
+                      {homePhotos.map(item => (
+                        <button key={item.id} type="button" onClick={() => setLightbox(item)} aria-label={`Agrandir : ${item.title}`} className="hover-scale group relative block overflow-hidden rounded-2xl sm:rounded-3xl aspect-[4/3] bg-stone-200 text-left">
+                          <img src={item.image} alt={item.title} loading="lazy" decoding="async" className="w-full h-full object-cover transition-transform duration-700 ease-out group-hover:scale-105" />
+                          <span className="absolute inset-x-0 bottom-0 p-3 sm:p-4 bg-gradient-to-t from-black/70 to-transparent text-white">
+                            <span className="block text-[10px] font-bold uppercase tracking-wide text-orange-200">{item.category}</span>
+                            <span className="block font-serif font-bold text-sm sm:text-base leading-tight">{item.title}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {homePhotos.length > 0 && (
+                    <div className="text-center">
+                      <button type="button" onClick={() => { setActiveTab('mediatheque'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:underline">Voir toute la médiathèque <ChevronDown className="w-4 h-4 -rotate-90" /></button>
+                    </div>
+                  )}
+                </section>
+              );
+            })()}
+
             {/* NOTRE HISTOIRE */}
             <section aria-label="Notre histoire" className="glass-card rounded-3xl p-6 sm:p-10 grid md:grid-cols-[auto,1fr] gap-8 md:gap-10 items-center">
               <div className="text-center md:text-left space-y-4 md:pr-10 md:border-r md:border-stone-300/60">
@@ -3952,6 +4056,19 @@ function App() {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {lightbox && (
+          <div role="dialog" aria-modal="true" aria-label={lightbox.title} onClick={() => setLightbox(null)} className="fixed inset-0 z-[90] bg-black/85 flex items-center justify-center p-4">
+            <button type="button" onClick={() => setLightbox(null)} aria-label="Fermer la photo" className="absolute top-4 right-4 w-11 h-11 rounded-full bg-white/90 flex items-center justify-center text-stone-800"><X className="w-5 h-5" /></button>
+            <figure onClick={e => e.stopPropagation()} className="max-w-4xl w-full space-y-3">
+              <img src={lightbox.image} alt={lightbox.title} className="w-full max-h-[78vh] object-contain rounded-2xl" />
+              <figcaption className="text-center text-white">
+                <span className="block text-[11px] font-bold uppercase tracking-wide text-orange-300">{lightbox.category}</span>
+                <span className="block font-serif text-lg font-bold">{lightbox.title}</span>
+              </figcaption>
+            </figure>
           </div>
         )}
 
