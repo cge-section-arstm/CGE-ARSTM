@@ -38,6 +38,9 @@
         fontFamily: {
           serif: ['"Playfair Display"', 'Georgia', 'serif'],
           sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        },
+        colors: {
+          blush: { 50: '#FEF3F5', 100: '#FDE4EA', 200: '#FBD0DB', 300: '#F7B5C6', 400: '#F09AB0', 500: '#DD7894', 600: '#C25577', 700: '#9F3D5C', 800: '#7C2E47' }
         }
       }
     }
@@ -48,7 +51,7 @@
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   body {
     margin: 0;
-    background: linear-gradient(180deg, #e9f1f7 0%, #f3f6f6 35%, #fbf7ee 100%);
+    background: linear-gradient(180deg, #fdeaee 0%, #f1efee 38%, #ffe9d8 100%);
     background-attachment: fixed;
     min-height: 100vh;
   }
@@ -67,11 +70,11 @@
     backdrop-filter: blur(25px) saturate(200%);
     -webkit-backdrop-filter: blur(25px) saturate(200%);
     border: 1px solid rgba(255, 255, 255, 0.7);
-    box-shadow: 0 30px 60px rgba(234, 88, 12, 0.12), 0 10px 25px rgba(0, 0, 0, 0.08), inset 0 1px 2px rgba(255, 255, 255, 0.9);
+    box-shadow: 0 30px 60px rgba(244, 164, 184, 0.28), 0 10px 25px rgba(87, 83, 78, 0.10), inset 0 1px 2px rgba(255, 255, 255, 0.9);
   }
 
   .liquid-pill {
-    background: linear-gradient(135deg, rgba(234, 88, 12, 0.9) 0%, rgba(249, 115, 22, 0.85) 100%);
+    background: linear-gradient(135deg, rgba(194, 65, 12, 0.94) 0%, rgba(234, 88, 12, 0.9) 55%, rgba(251, 146, 60, 0.88) 100%);
     box-shadow: 0 8px 20px rgba(234, 88, 12, 0.35), inset 0 1px 1px rgba(255, 255, 255, 0.5);
     backdrop-filter: blur(10px);
     transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -87,7 +90,11 @@
 
   /* Cartes : survol plus doux (léger soulèvement + ombre orangée, sans gros zoom) */
   .glass-card.hover-scale { transition: transform 0.3s ease, box-shadow 0.3s ease; }
-  .glass-card.hover-scale:hover { transform: translateY(-4px); box-shadow: 0 26px 55px rgba(234, 88, 12, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
+  .glass-card.hover-scale:hover { transform: translateY(-4px); box-shadow: 0 26px 55px rgba(244, 164, 184, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
+  /* Rythme de teintes dans les grilles de cartes : neutre, rose pastel, pêche, gris */
+  .glass-card.hover-scale:nth-child(4n+2) { background: linear-gradient(135deg, rgba(251, 208, 219, 0.42), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(4n+3) { background: linear-gradient(135deg, rgba(253, 186, 116, 0.28), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(4n+4) { background: linear-gradient(135deg, rgba(168, 162, 158, 0.20), rgba(255, 255, 255, 0.45)); }
   /* Boutons et liens : changements de couleur en douceur */
   button, a { transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.25s ease; }
 
@@ -134,8 +141,8 @@
   #splash { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px; text-align: center; font-family: Inter, system-ui, sans-serif; }
   #splash img { width: 84px; height: auto; animation: splashPulse 2.4s ease-in-out infinite; }
   #splash .splash-title { margin: 0; font-family: 'Playfair Display', Georgia, serif; font-weight: 800; font-size: 1.7rem; color: #1c1917; letter-spacing: 0.02em; }
-  #splash .splash-bar { width: min(220px, 60vw); height: 4px; border-radius: 999px; background: rgba(234, 88, 12, 0.15); overflow: hidden; }
-  #splash .splash-bar span { display: block; width: 40%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #EA580C, #F59E0B); animation: splashSlide 1.3s ease-in-out infinite; }
+  #splash .splash-bar { width: min(220px, 60vw); height: 4px; border-radius: 999px; background: rgba(244, 164, 184, 0.35); overflow: hidden; }
+  #splash .splash-bar span { display: block; width: 40%; height: 100%; border-radius: 999px; background: linear-gradient(90deg, #EA580C, #F2A4B8); animation: splashSlide 1.3s ease-in-out infinite; }
   #splash .splash-note { margin: 0; font-size: 0.8rem; color: #78716c; }
   #splash-slow { margin: 0; max-width: 20rem; font-size: 0.75rem; color: #78716c; opacity: 0; transition: opacity 0.6s ease; }
   @keyframes splashPulse { 0%, 100% { transform: scale(1); opacity: 0.9; } 50% { transform: scale(1.05); opacity: 1; } }
@@ -491,11 +498,11 @@ const MaritimeBackground = () => (
     <svg className="w-full h-full" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
         <pattern id="chartGrid" width="90" height="90" patternUnits="userSpaceOnUse">
-          <path d="M90 0H0V90" stroke="#0c2a4a" strokeWidth="1" opacity="0.07" />
+          <path d="M90 0H0V90" stroke="#57534e" strokeWidth="1" opacity="0.07" />
         </pattern>
         <linearGradient id="seaFade" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#1e5a86" stopOpacity="0" />
-          <stop offset="1" stopColor="#1e5a86" stopOpacity="0.14" />
+          <stop offset="0" stopColor="#F2A4B8" stopOpacity="0" />
+          <stop offset="1" stopColor="#F2A4B8" stopOpacity="0.28" />
         </linearGradient>
       </defs>
 
@@ -503,14 +510,14 @@ const MaritimeBackground = () => (
       <rect width="1440" height="900" fill="url(#chartGrid)" />
 
       {/* Rose des vents */}
-      <g transform="translate(1210 190)" stroke="#0c2a4a" opacity="0.13">
+      <g transform="translate(1210 190)" stroke="#57534e" opacity="0.13">
         <g className="compass-spin">
         <circle r="140" strokeWidth="1.5" />
         <circle r="112" strokeWidth="1" strokeDasharray="2 6" />
         <circle r="30" strokeWidth="1" />
-        <path d="M0 -150 L16 -16 L150 0 L16 16 L0 150 L-16 16 L-150 0 L-16 -16 Z" strokeWidth="1.5" fill="#0c2a4a" fillOpacity="0.06" />
+        <path d="M0 -150 L16 -16 L150 0 L16 16 L0 150 L-16 16 L-150 0 L-16 -16 Z" strokeWidth="1.5" fill="#57534e" fillOpacity="0.06" />
         <path d="M0 -105 L10 -10 L105 0 L10 10 L0 105 L-10 10 L-105 0 L-10 -10 Z" transform="rotate(45)" strokeWidth="1" />
-        <g fill="#0c2a4a" stroke="none" fontFamily="Inter, sans-serif" fontWeight="700" fontSize="18" textAnchor="middle">
+        <g fill="#57534e" stroke="none" fontFamily="Inter, sans-serif" fontWeight="700" fontSize="18" textAnchor="middle">
           <text y="-158">N</text><text x="164" y="6">E</text><text y="176">S</text><text x="-164" y="6">O</text>
         </g>
         </g>
@@ -522,13 +529,13 @@ const MaritimeBackground = () => (
       <circle cx="700" cy="610" r="5" fill="#EA580C" opacity="0.45" />
 
       {/* Sondes bathymétriques */}
-      <g fill="#0c2a4a" opacity="0.22" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="500">
+      <g fill="#57534e" opacity="0.22" fontFamily="Inter, sans-serif" fontSize="13" fontWeight="500">
         <text x="120" y="720">12</text><text x="330" y="780">18</text><text x="560" y="740">24</text>
         <text x="880" y="790">31</text><text x="1090" y="730">27</text><text x="1300" y="800">42</text>
       </g>
 
       {/* Courbes de niveau / houle */}
-      <g stroke="#0c2a4a" strokeWidth="1.3" strokeLinecap="round">
+      <g stroke="#E88BA4" strokeWidth="1.3" strokeLinecap="round">
         <path d="M0 760 C 180 730, 360 790, 540 760 S 900 730, 1080 765 S 1340 790, 1440 760" opacity="0.14" />
         <path d="M0 810 C 200 780, 380 840, 580 808 S 940 780, 1120 815 S 1360 838, 1440 808" opacity="0.11" />
         <path d="M0 860 C 220 832, 420 888, 620 858 S 980 832, 1160 862 S 1380 884, 1440 858" opacity="0.09" />
@@ -547,22 +554,22 @@ const HeroShip = () => (
       {/* conteneurs */}
       {[0,1,2].map(r => [0,1,2,3,4,5,6,7,8].map(c => (
         <rect key={`${r}-${c}`} x={70 + c*34} y={112 - r*22} width="31" height="20" rx="1.5"
-          fill={(r + c) % 4 === 0 ? "#EA580C" : (r + c) % 3 === 0 ? "#1e5a86" : "#0c2a4a"}
-          opacity={(r + c) % 4 === 0 ? 0.75 : 0.55} />
+          fill={['#EA580C', '#F2A4B8', '#A8A29E', '#FDBA74', '#57534e'][(r + c) % 5]}
+          opacity={(r + c) % 5 === 0 ? 0.8 : 0.7} />
       )))}
       {/* passerelle */}
-      <rect x="392" y="70" width="56" height="62" fill="#0c2a4a" opacity="0.7" />
-      <rect x="386" y="58" width="68" height="14" fill="#0c2a4a" opacity="0.8" />
-      <rect x="402" y="44" width="10" height="14" fill="#0c2a4a" opacity="0.7" />
+      <rect x="392" y="70" width="56" height="62" fill="#57534e" opacity="0.7" />
+      <rect x="386" y="58" width="68" height="14" fill="#57534e" opacity="0.8" />
+      <rect x="402" y="44" width="10" height="14" fill="#57534e" opacity="0.7" />
       <rect x="398" y="62" width="48" height="5" fill="#fff" opacity="0.55" />
       {/* cheminée */}
-      <rect x="426" y="34" width="14" height="26" fill="#EA580C" opacity="0.8" />
+      <rect x="426" y="34" width="14" height="26" fill="#F2A4B8" opacity="0.95" />
       {/* coque */}
-      <path d="M40 134 H500 L472 176 H78 Z" fill="#0c2a4a" opacity="0.85" />
+      <path d="M40 134 H500 L472 176 H78 Z" fill="#57534e" opacity="0.85" />
       <path d="M78 176 H472 L468 182 H84 Z" fill="#EA580C" opacity="0.7" />
     </g>
     {/* mer */}
-    <g stroke="#1e5a86" strokeWidth="2" strokeLinecap="round" fill="none">
+    <g stroke="#F2A4B8" strokeWidth="2" strokeLinecap="round" fill="none">
       <path d="M0 200 C 60 188, 120 212, 180 200 S 300 188, 360 200 S 480 212, 560 198" opacity="0.5" />
       <path d="M0 226 C 70 214, 130 238, 200 226 S 330 214, 400 226 S 500 238, 560 224" opacity="0.35" />
       <path d="M0 250 C 80 240, 140 260, 220 250 S 350 240, 420 250 S 520 260, 560 248" opacity="0.22" />
@@ -625,10 +632,10 @@ const CountdownPill = ({ date }) => {
 };
 
 // Petits dessins minimalistes (une scène par mission) : traits volontairement inachevés, comme un croquis
-const ART_INK = '#0c2a4a', ART_ACC = '#EA580C', ART_SOFT = '#FDBA74';
+const ART_INK = '#57534e', ART_ACC = '#EA580C', ART_SOFT = '#FDBA74';
 const ArtFrame = ({ children }) => (
   <svg viewBox="0 0 200 140" className="h-full w-auto" aria-hidden="true" focusable="false">
-    <circle cx="100" cy="72" r="60" fill="#FFEDD5" />
+    <circle cx="100" cy="72" r="60" fill="#FDE4EA" />
     <g stroke={ART_INK} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">{children}</g>
   </svg>
 );
@@ -1080,12 +1087,12 @@ function App() {
     'Connexion': 'bg-emerald-500/10 text-emerald-700 border-emerald-500/20',
     'Déconnexion': 'bg-stone-500/10 text-stone-600 border-stone-400/30',
     'Échec de connexion': 'bg-rose-500/10 text-rose-700 border-rose-500/30',
-    'Ajout': 'bg-sky-500/10 text-sky-700 border-sky-500/20',
+    'Ajout': 'bg-blush-200/50 text-blush-700 border-blush-300/60',
     'Modification': 'bg-amber-500/10 text-amber-700 border-amber-500/30',
     'Suppression': 'bg-rose-500/10 text-rose-700 border-rose-500/30',
-    'Réinitialisation mot de passe': 'bg-violet-500/10 text-violet-700 border-violet-500/20',
-    'Création de compte': 'bg-violet-500/10 text-violet-700 border-violet-500/20',
-    'Changement de mot de passe': 'bg-violet-500/10 text-violet-700 border-violet-500/20',
+    'Réinitialisation mot de passe': 'bg-stone-500/10 text-stone-700 border-stone-400/30',
+    'Création de compte': 'bg-stone-500/10 text-stone-700 border-stone-400/30',
+    'Changement de mot de passe': 'bg-stone-500/10 text-stone-700 border-stone-400/30',
   }[a] || 'bg-orange-500/10 text-orange-700 border-orange-500/20');
   const afterStaffWrite = () => { if (isAdminLoggedIn) loadActivityLog(); };
 
@@ -1751,7 +1758,7 @@ function App() {
   const renderMemberPhoto = (m, sizeClass) => m.image ? (
     <img src={m.image} alt={m.name} loading="lazy" decoding="async" className={`w-full ${sizeClass} object-cover object-top`} />
   ) : (
-    <div className={`w-full ${sizeClass} bg-gradient-to-br from-orange-500/15 to-amber-500/10 flex items-center justify-center`}>
+    <div className={`w-full ${sizeClass} bg-gradient-to-br from-orange-200/60 to-blush-200/60 flex items-center justify-center`}>
       <span className="font-serif text-4xl font-bold text-orange-600/70">{memberInitials(m.name)}</span>
     </div>
   );
@@ -2265,8 +2272,8 @@ function App() {
           <div className="space-y-12">
             <div className="relative rounded-3xl overflow-hidden glass-card p-8 sm:p-14 border border-white/80">
               <div className="wave-layer" aria-hidden="true">
-                <svg className="wave-a" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 32 C 200 8, 400 8, 600 32 S 1000 56, 1200 32 S 1600 8, 1800 32 S 2200 56, 2400 32 V64 H0 Z" fill="rgba(234,88,12,0.10)" /></svg>
-                <svg className="wave-b" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 40 C 200 60, 400 60, 600 40 S 1000 20, 1200 40 S 1600 60, 1800 40 S 2200 20, 2400 40 V64 H0 Z" fill="rgba(249,115,22,0.08)" /></svg>
+                <svg className="wave-a" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 32 C 200 8, 400 8, 600 32 S 1000 56, 1200 32 S 1600 8, 1800 32 S 2200 56, 2400 32 V64 H0 Z" fill="rgba(244,164,184,0.28)" /></svg>
+                <svg className="wave-b" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 40 C 200 60, 400 60, 600 40 S 1000 20, 1200 40 S 1600 60, 1800 40 S 2200 20, 2400 40 V64 H0 Z" fill="rgba(253,186,116,0.26)" /></svg>
               </div>
               {HERO_PHOTO ? (
                 <>
@@ -2283,7 +2290,7 @@ function App() {
                   <Sparkles className="w-3.5 h-3.5 text-orange-600" /> ARSTM
                 </span>
                 <h2 className="font-serif text-3xl sm:text-5xl font-extrabold text-stone-900 leading-tight">
-                  <span className="bg-gradient-to-r from-orange-600 to-amber-600 bg-clip-text text-transparent">CGE ARSTM</span>
+                  <span className="bg-gradient-to-r from-orange-600 via-orange-500 to-blush-500 bg-clip-text text-transparent">CGE ARSTM</span>
                 </h2>
                 <p className="text-stone-600 text-base sm:text-lg leading-relaxed">
                   L'espace communautaire interactif dédié à la cohésion, aux opportunités de carrière et au rayonnement des élèves officiers et ingénieurs.
@@ -2476,7 +2483,7 @@ function App() {
                           {m.locked ? (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-500/15 text-rose-700 border border-rose-500/30 text-xs font-semibold">Bloqué 15 min (trop d'erreurs)</span>
                           ) : m.has_password ? (
-                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-500/15 text-blue-700 border border-blue-500/30 text-xs font-semibold">Compte actif</span>
+                            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blush-200/50 text-blush-700 border border-blush-300/70 text-xs font-semibold">Compte actif</span>
                           ) : (
                             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/30 text-xs font-semibold">Mot de passe à définir</span>
                           )}
