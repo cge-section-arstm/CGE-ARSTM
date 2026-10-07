@@ -248,6 +248,7 @@ const ShieldCheck = (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 
 const RefreshCw = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></Icon>;
 const ChevronDown = (p) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
 const Send = (p) => <Icon {...p}><path d="M21 3 10.5 13.5" /><path d="M21 3l-6.5 18-4-8.5L2 8.5Z" /></Icon>;
+const MessageCircle = (p) => <Icon {...p}><path d="M3.5 20.5l1.4-4.3A8.5 8.5 0 1 1 8.2 19.2Z" /><path d="M8.8 9.5c.2 2.6 2.4 4.9 5.3 5.4l1.3-1.4-2-1-.9.7c-.8-.4-1.5-1.1-1.9-1.9l.7-.9-1-2Z" /></Icon>;
 const Check = (p) => <Icon {...p}><path d="m5 12.5 4.5 4.5L19 7.5" /></Icon>;
 const MapPin = (p) => <Icon {...p}><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></Icon>;
 const Globe = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3Z" /></Icon>;
@@ -1058,7 +1059,18 @@ const FeesButton = ({ m, onFees }) => m.fees_paid ? (
   <button type="button" onClick={() => onFees(m, true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-semibold shadow-md shadow-orange-600/25 whitespace-nowrap"><Check className="w-4 h-4" /> Valider (frais payés)</button>
 );
 
-const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, toggling, rpc, candidates, onFees, fmt }) => {
+const SITE_URL = 'https://darkfast942-bot.github.io/CGE-ARSTM/';
+// Durée restante lisible, et seuil du rappel avant fermeture (3 jours)
+const ADHESION_URGENT_MS = 3 * 86400000;
+const formatTimeLeft = (ms, short = false) => {
+  ms = Math.max(0, ms);
+  const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
+  if (short) return d >= 1 ? `${d} jour${d > 1 ? 's' : ''}` : h >= 1 ? `${h} h` : `${Math.max(1, m)} min`;
+  if (d > 0) return `${d} jour${d > 1 ? 's' : ''} et ${h} h`;
+  if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`;
+  return `${Math.max(1, m)} min`;
+};
+const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, onExtend, toggling, rpc, candidates, onFees, fmt }) => {
   const emptyForm = { name: '', email: '', phone: '', filiere: ADHESION_FILIERES[0], niveau: niveauxPour(ADHESION_FILIERES[0])[0], website: '' };
   const [form, setForm] = useState(emptyForm);
   const [status, setStatus] = useState('idle'); // idle | sending | sent
@@ -1070,14 +1082,8 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, t
   const [days, setDays] = useState('7');
   const [, setTick] = useState(0);
   useEffect(() => { if (!adhesionEnds) return; const id = setInterval(() => setTick(t => t + 1), 30000); return () => clearInterval(id); }, [adhesionEnds]);
-  const timeLeft = () => {
-    if (!adhesionEnds) return '';
-    const ms = Math.max(0, adhesionEnds - Date.now());
-    const d = Math.floor(ms / 86400000), h = Math.floor((ms % 86400000) / 3600000), m = Math.floor((ms % 3600000) / 60000);
-    if (d > 0) return `${d} jour${d > 1 ? 's' : ''} et ${h} h`;
-    if (h > 0) return `${h} h ${String(m).padStart(2, '0')} min`;
-    return `${Math.max(1, m)} min`;
-  };
+  const timeLeft = () => (adhesionEnds ? formatTimeLeft(adhesionEnds - Date.now()) : '');
+  const urgent = !!adhesionOpen && !!adhesionEnds && (adhesionEnds - Date.now()) <= ADHESION_URGENT_MS;
 
   const submit = async () => {
     if (sending) return;
@@ -1125,6 +1131,12 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, t
               {adhesionEnds && <p className="text-xs font-semibold text-emerald-700 mt-1">Ouvertes jusqu'au {fmt(adhesionEnds)} · il reste {timeLeft()}</p>}
             </div>
           </div>
+          {urgent && status !== 'sent' && (
+            <div role="status" className="rounded-2xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 flex items-start gap-2.5">
+              <Clock className="w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-900"><span className="font-bold">Dernier rappel :</span> il ne reste que {timeLeft()} pour envoyer votre demande. Fermeture le {fmt(adhesionEnds)}.</p>
+            </div>
+          )}
           {status === 'sent' ? (
             <div role="status" className="tab-fade rounded-2xl bg-white/80 border border-emerald-500/25 p-5 text-sm text-stone-700 space-y-3">
               <p className="font-semibold text-stone-900">Demande envoyée, merci !</p>
@@ -1173,6 +1185,25 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, t
         </div>
       )}
 
+      {/* Partage WhatsApp : lien direct vers cette page */}
+      {adhesionOpen && (() => {
+        let base = SITE_URL;
+        try { if (/^https?:$/.test(window.location.protocol)) base = window.location.origin + window.location.pathname; } catch (e) {}
+        const link = base + '#adhesion';
+        const text = `Les adhésions à la CGE section ARSTM sont ouvertes${adhesionEnds ? ` jusqu'au ${fmt(adhesionEnds)}` : ''} ! Postulez en ligne : ${link}`;
+        return (
+          <div className="glass-card rounded-3xl p-5 sm:p-6 flex flex-wrap items-center justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="font-serif text-lg font-bold text-stone-900">Faites passer le mot</p>
+              <p className="text-sm text-stone-600">Envoyez le lien de cette page à vos camarades et à vos groupes WhatsApp.</p>
+            </div>
+            <a href={`https://wa.me/?text=${encodeURIComponent(text)}`} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-5 py-3 rounded-2xl bg-[#25D366] text-white font-semibold text-sm shadow-lg shadow-emerald-600/25">
+              <MessageCircle className="w-5 h-5" /> Partager sur WhatsApp
+            </a>
+          </div>
+        );
+      })()}
+
       {/* Commande réservée au secrétariat et aux admins */}
       {isStaff && adhesionOpen !== null && (
         <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-5 flex flex-wrap items-center justify-between gap-3">
@@ -1187,6 +1218,14 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, t
                 <input type="number" min="1" max="90" inputMode="numeric" value={days} onChange={e => setDays(e.target.value)} disabled={toggling} className="w-16 px-2 py-2 rounded-xl bg-white border border-stone-200 text-sm text-center focus:outline-none focus:ring-2 focus:ring-orange-500" aria-label="Durée d'ouverture en jours" />
                 jours
               </label>
+            )}
+            {adhesionOpen && adhesionEnds && (
+              <div className="flex items-center gap-1.5">
+                <span className={`text-xs font-semibold ${urgent ? 'text-amber-700' : 'text-stone-600'}`}>Prolonger</span>
+                {[1, 3, 7].map(n => (
+                  <button key={n} type="button" onClick={() => onExtend(n)} disabled={toggling} className={`px-3 py-2 rounded-xl text-xs font-semibold border disabled:opacity-60 ${urgent ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-stone-700 border-stone-200 hover:text-orange-600'}`}>+{n} jour{n > 1 ? 's' : ''}</button>
+                ))}
+              </div>
             )}
             <button type="button" onClick={() => onToggle(Number(days) || 7)} disabled={toggling} className={`px-5 py-2.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${adhesionOpen ? 'bg-stone-800' : 'bg-orange-600'}`}>
               {toggling ? 'Patientez…' : adhesionOpen ? 'Fermer les demandes' : "Lancer les demandes d'adhésion"}
@@ -1254,7 +1293,12 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, t
 };
 
 function App() {
-  const [activeTab, setActiveTab] = useState('accueil');
+  const [activeTab, setActiveTab] = useState(() => { try { return window.location.hash === '#adhesion' ? 'adhesion' : 'accueil'; } catch (e) { return 'accueil'; } });
+  useEffect(() => {
+    const onHash = () => { if (window.location.hash === '#adhesion') { setActiveTab('adhesion'); window.scrollTo({ top: 0 }); } };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [hoveredTab, setHoveredTab] = useState(null);
   const [toast, setToast] = useState(null);
   const [loginError, setLoginError] = useState('');
@@ -1322,6 +1366,7 @@ function App() {
   const [openMessages, setOpenMessages] = useState({});
   const [adhesionOpen, setAdhesionOpen] = useState(null); // null = pas encore connu
   const [adhesionBusy, setAdhesionBusy] = useState(false);
+  const [, setAdhesionNow] = useState(0); // force le rafraîchissement du rappel
   const [adhesionEnds, setAdhesionEnds] = useState(null); // timestamp (ms) de fermeture automatique, ou null
   const [cgeApplyJob, setCgeApplyJob] = useState(null);
   const [cgeLetter, setCgeLetter] = useState(null);
@@ -1777,9 +1822,19 @@ function App() {
   // Fermeture automatique à l'écran quand la date limite est atteinte
   useEffect(() => {
     if (!adhesionOpen || !adhesionEnds) return;
-    const id = setInterval(() => { if (Date.now() >= adhesionEnds) { setAdhesionOpen(false); setAdhesionEnds(null); } }, 15000);
+    const id = setInterval(() => { if (Date.now() >= adhesionEnds) { setAdhesionOpen(false); setAdhesionEnds(null); } else setAdhesionNow(Date.now()); }, 15000);
     return () => clearInterval(id);
   }, [adhesionOpen, adhesionEnds]);
+  const extendAdhesion = async (days = 3) => {
+    setAdhesionBusy(true);
+    try {
+      const r = await authRpc('cge_adhesion_extend', { p_days: days });
+      applyAdhesionState(r);
+      showToastMsg(`Prolongé de ${days} jour${days > 1 ? 's' : ''} : fermeture le ${fmtDateTime(Date.now() + Number((r && r.seconds_left) || 0) * 1000)}.`, 'success');
+    } catch (e) {
+      showToastMsg('Prolongation impossible : ' + ((e && e.code === 'PGRST202') ? "relancez le script supabase_adhesion_duree.sql (Supabase > SQL Editor)." : explainDbError(e)), 'error');
+    } finally { setAdhesionBusy(false); }
+  };
   const toggleAdhesion = async (days = 7) => {
     const next = !adhesionOpen;
     const nbDays = Math.max(1, Math.min(90, Math.round(Number(days) || 7)));
@@ -3005,7 +3060,10 @@ function App() {
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
                   <span className="font-serif text-lg sm:text-xl font-bold text-stone-900">Devenir nouveau membre</span>
-                  {adhesionOpen !== null && <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${adhesionOpen ? 'text-emerald-700 bg-emerald-500/10 border-emerald-500/25' : 'text-stone-600 bg-stone-500/10 border-stone-400/30'}`}>{adhesionOpen ? 'Adhésions ouvertes' : 'Adhésions fermées'}</span>}
+                  {adhesionOpen !== null && (() => {
+                    const soon = !!adhesionOpen && !!adhesionEnds && (adhesionEnds - Date.now()) <= ADHESION_URGENT_MS;
+                    return <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${soon ? 'text-amber-800 bg-amber-500/15 border-amber-500/40' : adhesionOpen ? 'text-emerald-700 bg-emerald-500/10 border-emerald-500/25' : 'text-stone-600 bg-stone-500/10 border-stone-400/30'}`}>{soon ? `Plus que ${formatTimeLeft(adhesionEnds - Date.now(), true)} pour adhérer` : adhesionOpen ? 'Adhésions ouvertes' : 'Adhésions fermées'}</span>;
+                  })()}
                 </span>
                 <span className="block text-sm text-stone-600">Qui peut adhérer, comment s'inscrire et ce qui vous attend : découvrez le parcours.</span>
               </span>
@@ -3549,7 +3607,7 @@ function App() {
         )}
 
         {/* DEVENIR NOUVEAU MEMBRE (page ouverte depuis l'accueil) */}
-        {activeTab === 'adhesion' && <AdhesionPage onBack={() => { setActiveTab('accueil'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} adhesionOpen={adhesionOpen} adhesionEnds={adhesionEnds} isStaff={isStaffLoggedIn} onToggle={toggleAdhesion} toggling={adhesionBusy} rpc={rpc} candidates={isStaffLoggedIn ? (inbox === null ? null : inbox.filter(x => x.subject === 'Adhésion')) : []} onFees={setMessageFees} fmt={fmtDateTime} />}
+        {activeTab === 'adhesion' && <AdhesionPage onBack={() => { setActiveTab('accueil'); try { if (window.location.hash === '#adhesion') window.history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {} window.scrollTo({ top: 0, behavior: 'smooth' }); }} adhesionOpen={adhesionOpen} adhesionEnds={adhesionEnds} isStaff={isStaffLoggedIn} onToggle={toggleAdhesion} onExtend={extendAdhesion} toggling={adhesionBusy} rpc={rpc} candidates={isStaffLoggedIn ? (inbox === null ? null : inbox.filter(x => x.subject === 'Adhésion')) : []} onFees={setMessageFees} fmt={fmtDateTime} />}
 
         {/* MESSAGES VIEW (secrétariat & admins) */}
         {activeTab === 'messages' && isStaffLoggedIn && (() => {
