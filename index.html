@@ -102,6 +102,15 @@
   .page-leave { opacity: 0; transform: translateY(-14px) scale(0.99); pointer-events: none; transition: opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1), transform 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
 
   /* Fondu rapide quand on change de rubrique */
+
+  /* Messagerie (Contact) : liste déroulante des sujets, ouverture fluide */
+  .cge-dd { position: absolute; left: 0; right: 0; top: calc(100% + 8px); z-index: 30; display: grid; grid-template-rows: 0fr; opacity: 0; transform: translateY(-8px) scale(0.98); transform-origin: top center; visibility: hidden; pointer-events: none;
+    transition: grid-template-rows 0.38s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.25s ease, transform 0.38s cubic-bezier(0.22, 1, 0.36, 1), visibility 0s linear 0.38s; }
+  .cge-dd.is-open { grid-template-rows: 1fr; opacity: 1; transform: none; visibility: visible; pointer-events: auto; transition-delay: 0s; }
+  .cge-dd-inner { overflow: hidden; min-height: 0; border-radius: 1rem; background: rgba(255,255,255,0.97); border: 1px solid rgba(251, 146, 60, 0.35); box-shadow: 0 18px 40px rgba(234, 88, 12, 0.18), 0 6px 14px rgba(87, 83, 78, 0.10); }
+  .cge-dd li { opacity: 0; transform: translateY(-6px); transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.2s ease; }
+  .cge-dd.is-open li { opacity: 1; transform: none; transition-delay: calc(var(--i, 0) * 45ms + 60ms), calc(var(--i, 0) * 45ms + 60ms), 0s; }
+  .cge-msg-body { overflow: hidden; }
   @keyframes tabFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .tab-fade { animation: tabFade 0.3s ease-out; }
 
@@ -237,6 +246,13 @@ const Plus = (p) => <Icon {...p}><path d="M12 5v14M5 12h14" /></Icon>;
 const Pencil = (p) => <Icon {...p}><path d="M16.5 4.5a2.1 2.1 0 0 1 3 3L7 20l-4 1 1-4Z" /><path d="M14.5 6.5l3 3" /></Icon>;
 const ShieldCheck = (p) => <Icon {...p}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /><path d="m9 12 2 2 4-4" /></Icon>;
 const RefreshCw = (p) => <Icon {...p}><path d="M3 12a9 9 0 0 1 15-6.7L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" /><path d="M3 21v-5h5" /></Icon>;
+const ChevronDown = (p) => <Icon {...p}><path d="m6 9 6 6 6-6" /></Icon>;
+const Send = (p) => <Icon {...p}><path d="M21 3 10.5 13.5" /><path d="M21 3l-6.5 18-4-8.5L2 8.5Z" /></Icon>;
+const Check = (p) => <Icon {...p}><path d="m5 12.5 4.5 4.5L19 7.5" /></Icon>;
+const MapPin = (p) => <Icon {...p}><path d="M12 21s-7-6.1-7-11.5a7 7 0 0 1 14 0C19 14.9 12 21 12 21Z" /><circle cx="12" cy="9.5" r="2.5" /></Icon>;
+const Globe = (p) => <Icon {...p}><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3c2.6 2.6 3.9 5.6 3.9 9s-1.3 6.4-3.9 9c-2.6-2.6-3.9-5.6-3.9-9S9.4 5.6 12 3Z" /></Icon>;
+const Phone = (p) => <Icon {...p}><path d="M5 4h3.5l1.8 4.5-2.2 1.4a11 11 0 0 0 5 5l1.4-2.2L19 14.5V18a2 2 0 0 1-2 2A13 13 0 0 1 3 6a2 2 0 0 1 2-2Z" /></Icon>;
+const Handshake = (p) => <Icon {...p}><path d="m2.5 11.5 4-4 4 1.5 3-1.5 4 .5 4 4" /><path d="m2.5 11.5 6.5 6.5a1.8 1.8 0 0 0 2.5-2.5" /><path d="m11.5 15.5 1.5 1.5a1.8 1.8 0 0 0 2.5-2.5l-2-2" /><path d="m21.5 11.5-5 5" /></Icon>;
 const Search = (p) => <Icon {...p}><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></Icon>;
 
 // LOGO_CGE_SRC est défini dans l'en-tête de la page (il sert aussi d'icône d'onglet).
@@ -325,7 +341,7 @@ const SESSION_STORAGE_KEY = 'cge_arstm_session';
 // Rubriques modifiables par le secrétariat (le serveur applique la même règle).
 const SECRETARIAT_EDITABLE = ['contacts', 'gallery', 'registre'];
 // Onglets qui demandent d'être connecté
-const PRIVATE_TABS = ['emplois', 'alumni', 'registre', 'admin-space', 'historique', 'candidatures', 'espace-membre'];
+const PRIVATE_TABS = ['emplois', 'alumni', 'registre', 'admin-space', 'historique', 'candidatures', 'messages', 'espace-membre'];
 // Ordre d'affichage du Bureau Exécutif
 const BUREAU_DEPARTMENTS = [
   { key: 'presidence', label: 'Présidence' },
@@ -751,6 +767,471 @@ const CGE_MISSIONS = [
   { title: 'Rayonnement', text: "Faire briller l'ARSTM dans toute la sous-région.", art: ArtRayonnement },
 ];
 
+// ---------- Messagerie de la rubrique Contact ----------
+const MESSAGE_SUBJECTS = ['Renseignement', 'Partenariat', 'Adhésion', 'Autre'];
+const MESSAGE_MAX = 3000;
+const SUBJECT_STYLE = {
+  'Renseignement': 'text-orange-700 bg-orange-500/10 border-orange-500/25',
+  'Partenariat': 'text-rose-700 bg-rose-400/15 border-rose-400/35',
+  'Adhésion': 'text-amber-700 bg-amber-500/10 border-amber-500/25',
+  'Autre': 'text-stone-600 bg-stone-500/10 border-stone-400/30',
+};
+
+const SubjectSelect = ({ value, onChange, disabled, options = MESSAGE_SUBJECTS, id = 'msg-subject' }) => {
+  const [open, setOpen] = useState(false);
+  const [active, setActive] = useState(0);
+  const wrapRef = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('touchstart', close);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('touchstart', close); };
+  }, [open]);
+  const toggle = () => { if (disabled) return; setActive(Math.max(0, options.indexOf(value))); setOpen(o => !o); };
+  const choose = (s) => { onChange(s); setOpen(false); };
+  const onKeyDown = (e) => {
+    const n = options.length;
+    if (e.key === 'Escape') { setOpen(false); }
+    else if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) toggle(); else setActive(a => (a + 1) % n); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); if (!open) toggle(); else setActive(a => (a - 1 + n) % n); }
+    else if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); if (open) choose(options[active]); else toggle(); }
+    else if (e.key === 'Tab') { setOpen(false); }
+  };
+  return (
+    <div ref={wrapRef} className="relative">
+      <button type="button" id={id} role="combobox" aria-haspopup="listbox" aria-expanded={open} aria-controls={`${id}-list`} disabled={disabled}
+        onClick={toggle} onKeyDown={onKeyDown}
+        className={`w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-white/70 border text-sm text-left text-stone-900 focus:outline-none focus:ring-2 focus:ring-orange-500 ${open ? 'border-orange-400' : 'border-stone-200'}`}>
+        <span>{value}</span>
+        <ChevronDown className={`w-4 h-4 text-orange-600 transition-transform duration-300 ${open ? 'rotate-180' : ''}`} />
+      </button>
+      <div className={`cge-dd ${open ? 'is-open' : ''}`} aria-hidden={!open}>
+        <div className="cge-dd-inner">
+          <ul id={`${id}-list`} role="listbox" aria-labelledby={`${id}-label`} className="py-1.5">
+            {options.map((s, i) => (
+              <li key={s} role="option" aria-selected={s === value} style={{ '--i': i }}
+                onMouseEnter={() => setActive(i)} onClick={() => choose(s)}
+                className={`mx-1.5 px-3 py-2.5 rounded-xl text-sm cursor-pointer flex items-center justify-between ${i === active ? 'bg-orange-500/10 text-orange-700' : 'text-stone-700'} ${s === value ? 'font-semibold' : ''}`}>
+                <span>{s}</span>
+                {s === value && <Check className="w-4 h-4 text-orange-600" />}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const ContactMessageForm = ({ rpc }) => {
+  const emptyForm = { name: '', email: '', subject: MESSAGE_SUBJECTS[0], message: '', website: '' };
+  const [form, setForm] = useState(emptyForm);
+  const [status, setStatus] = useState('idle'); // idle | sending | sent
+  const [error, setError] = useState('');
+  const lastSent = useRef(0);
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (error) setError(''); };
+  const inputClass = "w-full px-4 py-3 rounded-2xl bg-white/70 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-60";
+  const sending = status === 'sending';
+
+  const submit = async () => {
+    if (sending) return;
+    const name = form.name.trim(), email = form.email.trim(), message = form.message.trim();
+    if (name.length < 2) return setError('Indiquez votre nom complet.');
+    if (!EMAIL_RE.test(email)) return setError('Indiquez une adresse email valide, pour que le secrétariat puisse vous répondre.');
+    if (message.length < 10) return setError('Votre message est trop court (10 caractères minimum).');
+    if (Date.now() - lastSent.current < 30000) return setError("Veuillez patienter quelques secondes avant d'envoyer un autre message.");
+    setStatus('sending'); setError('');
+    try {
+      await rpc('cge_message_send', { p_name: name, p_email: email, p_subject: form.subject, p_message: message, p_website: form.website });
+      lastSent.current = Date.now();
+      setForm(emptyForm);
+      setStatus('sent');
+    } catch (e) {
+      setStatus('idle');
+      if (e && e.code === 'PGRST202') setError("La messagerie n'est pas encore disponible. Utilisez les coordonnées ci-dessus.");
+      else if (e && e.code === 'P0001' && e.message) setError(e.message);
+      else if (e && /Failed to fetch|NetworkError|network/i.test(e.message || '')) setError('Connexion impossible. Vérifiez votre connexion internet et réessayez.');
+      else setError("Votre message n'a pas pu être envoyé. Réessayez dans un instant.");
+    }
+  };
+
+  return (
+    <div id="contact-form" className="pt-6 border-t border-stone-200/70 space-y-5 scroll-mt-6">
+      <div className="flex items-center gap-3">
+        <div className="w-11 h-11 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0"><Send className="w-5 h-5 text-orange-600" /></div>
+        <div>
+          <h3 className="font-serif text-xl font-bold text-stone-900">Envoyer un message</h3>
+          <p className="text-xs text-stone-500">Votre message est transmis directement au secrétariat de la CGE ARSTM.</p>
+        </div>
+      </div>
+
+      {status === 'sent' ? (
+        <div role="status" className="tab-fade rounded-3xl bg-emerald-500/10 border border-emerald-500/25 p-6 text-center space-y-3">
+          <CheckCircle className="w-10 h-10 mx-auto text-emerald-600" />
+          <h4 className="font-serif text-lg font-bold text-stone-900">Message envoyé</h4>
+          <p className="text-sm text-stone-600">Merci ! Le secrétariat vous répondra par email dès que possible.</p>
+          <button type="button" onClick={() => setStatus('idle')} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">Envoyer un autre message</button>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="space-y-1.5">
+            <label htmlFor="msg-name" className="text-xs font-semibold text-stone-600">Nom complet</label>
+            <input id="msg-name" type="text" autoComplete="name" maxLength={120} value={form.name} disabled={sending} onChange={e => set('name', e.target.value)} className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="msg-email" className="text-xs font-semibold text-stone-600">Email</label>
+            <input id="msg-email" type="email" autoComplete="email" inputMode="email" maxLength={200} value={form.email} disabled={sending} onChange={e => set('email', e.target.value)} className={inputClass} />
+          </div>
+          <div className="space-y-1.5">
+            <label id="msg-subject-label" htmlFor="msg-subject" className="text-xs font-semibold text-stone-600">Sujet</label>
+            <SubjectSelect value={form.subject} onChange={v => set('subject', v)} disabled={sending} />
+          </div>
+          <div className="space-y-1.5">
+            <label htmlFor="msg-text" className="text-xs font-semibold text-stone-600">Message ({form.message.length}/{MESSAGE_MAX})</label>
+            <textarea id="msg-text" rows="6" maxLength={MESSAGE_MAX} value={form.message} disabled={sending} onChange={e => set('message', e.target.value)} className={inputClass + ' resize-y'} />
+          </div>
+          {/* Piège anti-robots : invisible pour les personnes, rempli par les robots */}
+          <input type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" name="website" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+          {error && <p role="alert" className="flex items-start gap-2 text-xs font-semibold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-2xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-px" /><span>{error}</span></p>}
+          <div className="flex justify-end">
+            <button type="button" onClick={submit} disabled={sending} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold text-sm shadow-lg shadow-orange-600/30 disabled:opacity-70">
+              <Send className="w-4 h-4" /> {sending ? 'Envoi en cours…' : 'Envoyer'}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ---------- Liste des admis par ordre de mérite (actualité spéciale) ----------
+// Dans le contenu d'une actualité : un texte d'introduction (facultatif), puis la ligne [[ADMIS]],
+// puis une ligne par admis, dans l'ordre de mérite : Nom | Section | Niveau
+const ADMIS_MARK = '[[ADMIS]]';
+// Variante : [[ADMIS:10]] n'affiche d'abord que les 10 premiers (podium compris), puis « Voir la liste complète »
+const ADMIS_RE = /\[\[ADMIS(?::(\d{1,3}))?\]\]/;
+const ADMIS_TEMPLATE = "Félicitations aux candidats admis, classés par ordre de mérite.\n" + ADMIS_MARK + "\nNOM Prénoms | Mécanique navale | MN1\nNOM Prénoms | Sciences nautiques | SN1\nNOM Prénoms | Génie thermique | GT1";
+const SECTION_ALIASES = {
+  'sn': 'Sciences nautiques', 'sciences nautiques': 'Sciences nautiques',
+  'mn': 'Mécanique navale', 'mecanique navale': 'Mécanique navale', 'mécanique navale': 'Mécanique navale',
+  'gt': 'Génie thermique', 'genie thermique': 'Génie thermique', 'génie thermique': 'Génie thermique',
+  'rit': 'Télécoms / RIT', 'telecoms': 'Télécoms / RIT', 'télécoms': 'Télécoms / RIT', 'telecoms / rit': 'Télécoms / RIT', 'télécoms / rit': 'Télécoms / RIT',
+};
+const isNiveauCode = (s) => /^(SN|MN|GT|RIT|MASTER)\s*\d$/i.test(String(s || '').trim());
+const sectionFromNiveau = (n) => {
+  const u = String(n || '').toUpperCase().replace(/\s+/g, '');
+  if (/^SN\d/.test(u)) return 'Sciences nautiques';
+  if (/^MN\d/.test(u)) return 'Mécanique navale';
+  if (/^GT\d/.test(u)) return 'Génie thermique';
+  if (/^RIT\d/.test(u)) return 'Télécoms / RIT';
+  return '';
+};
+const parseAdmis = (content) => {
+  const text = String(content || '');
+  const mm = text.match(ADMIS_RE);
+  if (!mm) return null;
+  const intro = text.slice(0, mm.index).trim();
+  const rows = text.slice(mm.index + mm[0].length).split('\n').map(l => l.trim()).filter(Boolean).map(line => {
+    const parts = line.replace(/^\d{1,3}\s*[.)]\s+/, '').split('|').map(s => s.trim());
+    const name = parts[0];
+    let section = '', niveau = '';
+    if (parts.length === 2) { niveau = parts[1]; section = sectionFromNiveau(niveau); }
+    else if (parts.length >= 3) {
+      let secRaw = parts[1]; niveau = parts[2];
+      if (isNiveauCode(parts[1]) && !isNiveauCode(parts[2])) { niveau = parts[1]; secRaw = parts[2]; }
+      section = SECTION_ALIASES[secRaw.toLowerCase()] || secRaw;
+    }
+    return { name, section, niveau };
+  }).filter(r => r.name);
+  return { intro, rows, limit: mm[1] ? parseInt(mm[1], 10) : null };
+};
+
+const PODIUM_STYLE = {
+  1: { box: 'bg-gradient-to-b from-orange-500 to-orange-600 text-white border-orange-400 shadow-xl shadow-orange-600/30 pt-7 pb-6 sm:pt-10 sm:pb-9', badge: 'bg-white text-orange-600', label: '1er', sub: 'text-orange-50' },
+  2: { box: 'bg-rose-100/90 text-rose-950 border-rose-300/70 pt-5 pb-4 sm:pt-7 sm:pb-6', badge: 'bg-rose-400 text-white', label: '2e', sub: 'text-rose-700' },
+  3: { box: 'bg-stone-200/90 text-stone-900 border-stone-300 pt-4 pb-3 sm:pt-6 sm:pb-5', badge: 'bg-stone-500 text-white', label: '3e', sub: 'text-stone-600' },
+};
+const normText = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+const AdmisList = ({ rows, limit }) => {
+  const [q, setQ] = useState('');
+  const [sec, setSec] = useState('all');
+  const [all, setAll] = useState(false);
+  if (rows.length === 0) return <p className="text-sm text-stone-500">La liste des admis sera publiée prochainement.</p>;
+  const ranked = rows.map((r, i) => ({ ...r, rank: i + 1 }));
+  const sections = [...new Set(ranked.map(r => r.section).filter(Boolean))];
+  const filtering = q.trim() !== '' || sec !== 'all';
+  const matches = ranked.filter(r => (sec === 'all' || r.section === sec) && normText(r.name).includes(normText(q.trim())));
+  const podium = ranked.slice(0, 3);
+  const podiumOrder = podium.length === 3 ? [podium[1], podium[0], podium[2]] : podium.length === 2 ? [podium[1], podium[0]] : podium;
+  const listBase = filtering ? matches : ranked.slice(3);
+  const initial = limit ? Math.max(limit - 3, 0) : Infinity; // nombre de lignes affichées sous le podium avant « Voir la liste complète »
+  const shown = filtering || all ? listBase : listBase.slice(0, initial);
+  const subLine = (r) => [r.section, r.niveau].filter(Boolean).join(' · ');
+  return (
+    <div className="space-y-5">
+      <p className="text-xs font-semibold text-stone-500">{ranked.length} admis · classés par ordre de mérite</p>
+
+      {!filtering && (
+        <div className="grid grid-cols-3 gap-2 sm:gap-4 items-end max-w-2xl mx-auto">
+          {podiumOrder.map(r => {
+            const st = PODIUM_STYLE[r.rank];
+            return (
+              <div key={r.rank} className={`rounded-2xl sm:rounded-3xl border px-2 sm:px-4 text-center space-y-1.5 ${st.box}`}>
+                <span className={`mx-auto w-9 h-9 sm:w-11 sm:h-11 rounded-full flex items-center justify-center text-xs sm:text-sm font-extrabold shadow ${st.badge}`}>{st.label}</span>
+                <p className="font-serif font-bold text-xs sm:text-base leading-tight break-words">{r.name}</p>
+                {subLine(r) && <p className={`text-[10px] sm:text-xs leading-tight ${st.sub}`}>{subLine(r)}</p>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div className="relative">
+          <Search className="w-4 h-4 text-stone-400 absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none" />
+          <input type="search" value={q} onChange={e => setQ(e.target.value)} placeholder="Rechercher un nom…" aria-label="Rechercher un admis par nom" className="w-full pl-10 pr-4 py-3 rounded-2xl bg-white/80 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500" />
+        </div>
+        {sections.length > 1 && (
+          <div className="flex flex-wrap gap-2">
+            {['all', ...sections].map(s => (
+              <button key={s} type="button" onClick={() => setSec(s)} aria-pressed={sec === s}
+                className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border ${sec === s ? 'bg-orange-600 text-white border-orange-600 shadow-md shadow-orange-600/25' : 'bg-white/80 text-stone-700 border-stone-200 hover:text-orange-600'}`}>{s === 'all' ? 'Toutes les sections' : s}</button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {listBase.length === 0 ? (
+        <p className="text-sm text-stone-500">{filtering ? 'Aucun admis ne correspond à votre recherche.' : ''}</p>
+      ) : (
+        <ol className="divide-y divide-stone-200/70">
+          {shown.map(r => (
+            <li key={r.rank} className="flex items-center gap-3 py-2.5">
+              <span className="w-9 h-9 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-700 text-xs font-bold flex items-center justify-center flex-shrink-0">{r.rank}</span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-stone-900 break-words">{r.name}</p>
+                {subLine(r) && <p className="text-xs text-stone-500">{subLine(r)}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+      {!filtering && listBase.length > initial && (
+        <button type="button" onClick={() => setAll(a => !a)} className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600">
+          <ChevronDown className={`w-4 h-4 transition-transform duration-300 ${all ? 'rotate-180' : ''}`} />
+          {all ? 'Réduire la liste' : `Voir la liste complète (${ranked.length} admis)`}
+        </button>
+      )}
+    </div>
+  );
+};
+
+// ---------- Devenir nouveau membre ----------
+const ADHESION_FILIERES = ['Sciences nautiques', 'Mécanique navale', 'Génie thermique', 'Télécoms / RIT'];
+// Niveaux : chaque section a ses années de Licence ; les deux années de Master sont communes.
+const ADHESION_NIVEAUX_SECTION = {
+  'Sciences nautiques': ['SN1', 'SN2', 'SN3'],
+  'Mécanique navale': ['MN1', 'MN2', 'MN3'],
+  'Génie thermique': ['GT1', 'GT2'],
+  'Télécoms / RIT': ['RIT 1', 'RIT 2', 'RIT 3'],
+};
+const ADHESION_MASTERS = ['MASTER 1', 'MASTER 2'];
+const niveauxPour = (section) => [...(ADHESION_NIVEAUX_SECTION[section] || []), ...ADHESION_MASTERS];
+const ADHESION_STEPS = [
+  ['Inscription', "Postulez en ligne lors de la session d'adhésion."],
+  ['Frais', 'Réglez les frais administratifs (Trésorerie ou Mobile Money) pour débloquer votre formulaire.'],
+  ['Formulaire', 'Remplissez et déposez votre document physique au bureau.'],
+  ['Entretien', "Passez l'entretien de sélection à l'Académie (session collective unique)."],
+  ['Validation', 'Réglez votre cotisation annuelle une fois admis.'],
+  ['Confirmation', 'Bienvenue au club ! Recevez votre matricule de membre officiel.'],
+];
+
+const parseAdhesion = (m) => {
+  const get = (re) => { const x = String(m.message || '').match(re); return x ? x[1].trim() : ''; };
+  return { section: get(/(?:Section|Filière) : (.*)/), niveau: get(/Niveau : (.*)/), phone: get(/Téléphone : (.*)/) };
+};
+const FeesButton = ({ m, onFees }) => m.fees_paid ? (
+  <button type="button" onClick={() => onFees(m, false)} title="Annuler la validation" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 text-xs font-bold whitespace-nowrap"><Check className="w-4 h-4" /> Validé</button>
+) : (
+  <button type="button" onClick={() => onFees(m, true)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-semibold shadow-md shadow-orange-600/25 whitespace-nowrap"><Check className="w-4 h-4" /> Valider (frais payés)</button>
+);
+
+const AdhesionPage = ({ onBack, adhesionOpen, isStaff, onToggle, toggling, rpc, candidates, onFees, fmt }) => {
+  const emptyForm = { name: '', email: '', phone: '', filiere: ADHESION_FILIERES[0], niveau: niveauxPour(ADHESION_FILIERES[0])[0], website: '' };
+  const [form, setForm] = useState(emptyForm);
+  const [status, setStatus] = useState('idle'); // idle | sending | sent
+  const [error, setError] = useState('');
+  const lastSent = useRef(0);
+  const sending = status === 'sending';
+  const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); if (error) setError(''); };
+  const inputClass = "w-full px-4 py-3 rounded-2xl bg-white/80 border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-60";
+
+  const submit = async () => {
+    if (sending) return;
+    const name = form.name.trim(), email = form.email.trim(), phone = form.phone.trim();
+    if (name.length < 2) return setError('Indiquez votre nom complet.');
+    if (!EMAIL_RE.test(email)) return setError('Indiquez une adresse email valide.');
+    if (phone.replace(/\D/g, '').length < 8) return setError('Indiquez un numéro de téléphone valide (WhatsApp de préférence).');
+    if (Date.now() - lastSent.current < 30000) return setError("Veuillez patienter quelques secondes avant d'envoyer une autre demande.");
+    setStatus('sending'); setError('');
+    try {
+      const message = `Demande d'adhésion\nSection : ${form.filiere}\nNiveau : ${form.niveau}\nTéléphone : ${phone}`;
+      await rpc('cge_message_send', { p_name: name, p_email: email, p_subject: 'Adhésion', p_message: message, p_website: form.website });
+      lastSent.current = Date.now();
+      setForm(emptyForm); setStatus('sent');
+    } catch (e) {
+      setStatus('idle');
+      if (e && e.code === 'PGRST202') setError("Les demandes en ligne ne sont pas encore disponibles. Écrivez-nous depuis la rubrique Contact.");
+      else if (e && e.code === 'P0001' && e.message) setError(e.message);
+      else setError("Votre demande n'a pas pu être envoyée. Réessayez dans un instant.");
+    }
+  };
+
+  return (
+    <div className="max-w-3xl mx-auto space-y-6">
+      <button type="button" onClick={onBack} className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-orange-600">
+        <ChevronDown className="w-4 h-4 rotate-90" /> Retour à l'accueil
+      </button>
+
+      <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-3">
+        <div className="w-12 h-12 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center"><UserCheck className="w-6 h-6 text-orange-600" /></div>
+        <h2 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">Devenez membre de la CGE section ARSTM !</h2>
+        <p className="text-sm sm:text-base text-stone-600 leading-relaxed">Boostez votre réseau, saisissez de belles opportunités et impliquez-vous dans la vie associative de votre Académie.</p>
+      </div>
+
+      {/* État de la session d'adhésion */}
+      {adhesionOpen === null ? (
+        <div className="glass-card rounded-3xl p-6 text-sm text-stone-500">Vérification de la session d'adhésion…</div>
+      ) : adhesionOpen ? (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-5 border border-emerald-500/30">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-emerald-500/15 border border-emerald-500/25 flex items-center justify-center flex-shrink-0"><CheckCircle className="w-5 h-5 text-emerald-600" /></div>
+            <div>
+              <h3 className="font-serif text-xl font-bold text-stone-900">Adhésions ouvertes</h3>
+              <p className="text-sm text-stone-600">La session d'adhésion est lancée : remplissez le formulaire pour postuler.</p>
+            </div>
+          </div>
+          {status === 'sent' ? (
+            <div role="status" className="tab-fade rounded-2xl bg-white/80 border border-emerald-500/25 p-5 text-sm text-stone-700 space-y-3">
+              <p className="font-semibold text-stone-900">Demande envoyée, merci !</p>
+              <p>Le secrétariat vous recontactera pour la suite : frais, formulaire et entretien.</p>
+              <button type="button" onClick={() => setStatus('idle')} className="px-4 py-2 rounded-xl bg-white border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600">Envoyer une autre demande</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <label htmlFor="adh-name" className="text-xs font-semibold text-stone-600">Nom complet</label>
+                  <input id="adh-name" type="text" autoComplete="name" maxLength={120} value={form.name} disabled={sending} onChange={e => set('name', e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <label id="adh-filiere-label" htmlFor="adh-filiere" className="text-xs font-semibold text-stone-600">Section</label>
+                  <SubjectSelect id="adh-filiere" options={ADHESION_FILIERES} value={form.filiere} onChange={v => { const opts = niveauxPour(v); setForm(f => ({ ...f, filiere: v, niveau: opts.includes(f.niveau) ? f.niveau : opts[0] })); if (error) setError(''); }} disabled={sending} />
+                </div>
+                <div className="space-y-1.5">
+                  <label id="adh-niveau-label" htmlFor="adh-niveau" className="text-xs font-semibold text-stone-600">Niveau</label>
+                  <SubjectSelect id="adh-niveau" options={niveauxPour(form.filiere)} value={form.niveau} onChange={v => set('niveau', v)} disabled={sending} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="adh-email" className="text-xs font-semibold text-stone-600">Email</label>
+                  <input id="adh-email" type="email" autoComplete="email" inputMode="email" maxLength={200} value={form.email} disabled={sending} onChange={e => set('email', e.target.value)} className={inputClass} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="adh-phone" className="text-xs font-semibold text-stone-600">Téléphone (WhatsApp de préférence)</label>
+                  <input id="adh-phone" type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={form.phone} disabled={sending} onChange={e => set('phone', e.target.value)} className={inputClass} />
+                </div>
+              </div>
+              <input type="text" tabIndex={-1} autoComplete="off" aria-hidden="true" name="website" value={form.website} onChange={e => setForm(f => ({ ...f, website: e.target.value }))} style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }} />
+              {error && <p role="alert" className="flex items-start gap-2 text-xs font-semibold text-rose-700 bg-rose-500/10 border border-rose-500/20 rounded-2xl px-4 py-3"><AlertCircle className="w-4 h-4 flex-shrink-0 mt-px" /><span>{error}</span></p>}
+              <div className="flex justify-end">
+                <button type="button" onClick={submit} disabled={sending} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold text-sm shadow-lg shadow-orange-600/30 disabled:opacity-70"><Send className="w-4 h-4" /> {sending ? 'Envoi en cours…' : 'Envoyer ma demande'}</button>
+              </div>
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-3">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-orange-200/60 flex items-center justify-center flex-shrink-0"><Clock className="w-5 h-5 text-orange-600" /></div>
+            <h3 className="font-serif text-xl font-bold text-stone-900">Adhésions fermées</h3>
+          </div>
+          <p className="text-sm sm:text-base text-stone-600 leading-relaxed">Les adhésions sont fermées pour le moment. Elles ouvrent chaque année à la rentrée : surveillez les actualités !</p>
+        </div>
+      )}
+
+      {/* Commande réservée au secrétariat et aux admins */}
+      {isStaff && adhesionOpen !== null && (
+        <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-5 flex flex-wrap items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">Secrétariat et admins</p>
+            <p className="text-sm text-stone-700">{adhesionOpen ? "Les demandes d'adhésion sont ouvertes au public." : "Les demandes d'adhésion sont fermées au public."}</p>
+          </div>
+          <button type="button" onClick={onToggle} disabled={toggling} className={`px-5 py-2.5 rounded-xl text-xs font-semibold text-white disabled:opacity-60 ${adhesionOpen ? 'bg-stone-800' : 'bg-orange-600'}`}>
+            {toggling ? 'Patientez…' : adhesionOpen ? 'Fermer les demandes' : "Lancer les demandes d'adhésion"}
+          </button>
+        </div>
+      )}
+
+      {/* Candidatures reçues : validation une fois les frais d'inscription réglés (secrétariat et admins) */}
+      {isStaff && (
+        <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4 border border-orange-500/25">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">Secrétariat et admins</p>
+              <h3 className="font-serif text-xl font-bold text-stone-900">Candidatures reçues{candidates ? ` (${candidates.length})` : ''}</h3>
+            </div>
+            {candidates && candidates.length > 0 && <p className="text-xs font-semibold text-stone-500">{candidates.filter(c => c.fees_paid).length} validée{candidates.filter(c => c.fees_paid).length > 1 ? 's' : ''} sur {candidates.length}</p>}
+          </div>
+          <p className="text-xs text-stone-500">Cliquez sur « Valider » quand le candidat a réglé ses frais d'inscription : il peut alors recevoir son formulaire.</p>
+          {candidates === null ? (
+            <p className="text-sm text-stone-500">Chargement des candidatures…</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-sm text-stone-500">Aucune candidature pour le moment.</p>
+          ) : (
+            <ul className="divide-y divide-stone-200/70">
+              {candidates.map(c => {
+                const info = parseAdhesion(c);
+                return (
+                  <li key={c.id} className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-stone-900 text-sm break-words">{c.name}</p>
+                      <p className="text-xs text-stone-600 break-words">{[info.section, info.niveau].filter(Boolean).join(' · ')}</p>
+                      <p className="text-xs text-stone-500 break-all"><a href={`mailto:${c.email}`} className="text-orange-600 hover:underline">{c.email}</a>{info.phone ? ` · ${info.phone}` : ''}</p>
+                      <p className="text-[11px] text-stone-400">Reçue le {fmt(c.created_at)}</p>
+                    </div>
+                    <FeesButton m={c} onFees={onFees} />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {/* Qui est concerné ? */}
+      <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-2">
+        <h3 className="font-serif text-xl font-bold text-stone-900">Qui est concerné ?</h3>
+        <p className="text-sm sm:text-base text-stone-600 leading-relaxed">Inscriptions ouvertes à tous les élèves en Master et aux étudiants en Licence (Sciences nautiques, Mécanique navale, Génie thermique, Télécoms / RIT). L'adhésion est définitive : diplômé, vous rejoignez le réseau des anciens.</p>
+      </div>
+
+      {/* Parcours */}
+      <div className="glass-card rounded-3xl p-6 sm:p-8 space-y-4">
+        <h3 className="font-serif text-xl font-bold text-stone-900">Le parcours d'inscription</h3>
+        <ol className="space-y-3">
+          {ADHESION_STEPS.map(([title, text], i) => (
+            <li key={title} className="flex items-start gap-3">
+              <span className="w-8 h-8 rounded-full bg-orange-600 text-white text-xs font-bold flex items-center justify-center flex-shrink-0 shadow-md shadow-orange-600/25">{i + 1}</span>
+              <p className="text-sm sm:text-base text-stone-600 leading-relaxed pt-0.5"><span className="font-bold text-stone-900">{title} :</span> {text}</p>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+};
+
 function App() {
   const [activeTab, setActiveTab] = useState('accueil');
   const [hoveredTab, setHoveredTab] = useState(null);
@@ -815,6 +1296,11 @@ function App() {
   const [myCv, setMyCv] = useState(null);
   const [cvBusy, setCvBusy] = useState(false);
   const [applications, setApplications] = useState([]);
+  const [inbox, setInbox] = useState(null); // null = pas encore chargé
+  const [inboxFilter, setInboxFilter] = useState('all');
+  const [openMessages, setOpenMessages] = useState({});
+  const [adhesionOpen, setAdhesionOpen] = useState(null); // null = pas encore connu
+  const [adhesionBusy, setAdhesionBusy] = useState(false);
   const [cgeApplyJob, setCgeApplyJob] = useState(null);
   const [cgeLetter, setCgeLetter] = useState(null);
   const [cgeApplyError, setCgeApplyError] = useState('');
@@ -1243,6 +1729,71 @@ function App() {
     try { const r = await authRpc('cge_cv_get', { p_with_data: true }); if (r && r.data) downloadBase64Pdf(r.data, r.filename); }
     catch (e) { showToastMsg('Ouverture impossible : ' + candErr(e), 'error'); }
   };
+  // ---------- Adhésions : page « Devenir nouveau membre » (hors barre du bas, ouverte par les boutons) ----------
+  const goToAdhesion = () => { setActiveTab('adhesion'); window.scrollTo({ top: 0, behavior: 'smooth' }); };
+  // Session ouverte ou fermée (script supabase_adhesion.sql)
+  useEffect(() => {
+    let alive = true;
+    rpc('cge_adhesion_status')
+      .then(r => { if (alive) setAdhesionOpen(!!(r && r.open)); })
+      .catch(() => { if (alive) setAdhesionOpen(false); });
+    return () => { alive = false; };
+  }, []);
+  const toggleAdhesion = async () => {
+    const next = !adhesionOpen;
+    if (!window.confirm(next ? "Lancer les demandes d'adhésion ? Tout le monde pourra postuler en ligne." : "Fermer les demandes d'adhésion ?")) return;
+    setAdhesionBusy(true);
+    try {
+      await authRpc('cge_adhesion_set', { p_open: next });
+      setAdhesionOpen(next);
+      showToastMsg(next ? "Les demandes d'adhésion sont ouvertes." : "Les demandes d'adhésion sont fermées.", 'success');
+    } catch (e) {
+      showToastMsg('Modification impossible : ' + ((e && e.code === 'PGRST202') ? "le script supabase_adhesion.sql n'est pas encore installé (Supabase > SQL Editor)." : explainDbError(e)), 'error');
+    } finally { setAdhesionBusy(false); }
+  };
+
+  // ---------- Messagerie : messages reçus (secrétariat et admins, fonctions du script supabase_messagerie.sql) ----------
+  const fmtDateTime = (d) => { try { return new Date(d).toLocaleString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; } };
+  const inboxErr = (e) => (e && e.code === 'PGRST202')
+    ? "le script supabase_messagerie.sql n'est pas encore installé (Supabase > SQL Editor)."
+    : explainDbError(e);
+  const loadInbox = async (silent) => {
+    try { setInbox((await authRpc('cge_messages_list')) || []); }
+    catch (e) { if (!silent) showToastMsg('Messagerie : ' + inboxErr(e), 'error'); }
+  };
+  useEffect(() => {
+    if (!sessionToken || !isStaffLoggedIn) { setInbox(null); return; }
+    loadInbox(true);
+    const t = setInterval(() => loadInbox(true), 60000);
+    return () => clearInterval(t);
+  }, [sessionToken, isStaffLoggedIn]);
+  const unreadCount = (inbox || []).filter(m => m.status === 'new').length;
+  const setMessageStatus = async (m, status) => {
+    try {
+      await authRpc('cge_message_set_status', { p_id: m.id, p_status: status });
+      setInbox(list => (list || []).map(x => x.id === m.id ? { ...x, status } : x));
+    } catch (e) { showToastMsg('Modification impossible : ' + inboxErr(e), 'error'); }
+  };
+  const toggleMessage = (m) => {
+    setOpenMessages(o => ({ ...o, [m.id]: !o[m.id] }));
+    if (m.status === 'new') setMessageStatus(m, 'read');
+  };
+  const setMessageFees = async (m, paid) => {
+    if (!window.confirm(paid ? `Confirmer que ${m.name} a réglé ses frais d'inscription ?` : `Annuler la validation de ${m.name} ?`)) return;
+    try {
+      await authRpc('cge_message_set_fees', { p_id: m.id, p_paid: paid });
+      setInbox(list => (list || []).map(x => x.id === m.id ? { ...x, fees_paid: paid } : x));
+      showToastMsg(paid ? 'Candidature validée.' : 'Validation annulée.', 'success');
+    } catch (e) {
+      showToastMsg('Modification impossible : ' + ((e && e.code === 'PGRST202') ? "le script supabase_adhesion_frais.sql n'est pas encore installé (Supabase > SQL Editor)." : inboxErr(e)), 'error');
+    }
+  };
+  const deleteMessage = async (m) => {
+    if (!window.confirm(`Supprimer définitivement le message de ${m.name} ?`)) return;
+    try { await authRpc('cge_message_delete', { p_id: m.id }); setInbox(list => (list || []).filter(x => x.id !== m.id)); }
+    catch (e) { showToastMsg('Suppression impossible : ' + inboxErr(e), 'error'); }
+  };
+
   const openCgeApply = (job) => { setCgeApplyJob(job); setCgeLetter(null); setCgeApplyError(''); };
   const closeCgeApply = () => { if (!cgeSending) { setCgeApplyJob(null); setCgeLetter(null); setCgeApplyError(''); } };
   const pickCgeLetter = (file) => {
@@ -1331,6 +1882,20 @@ function App() {
     return null;
   };
 
+  const contactIcon = (c) => {
+    const text = `${c.label || ''} ${c.value || ''}`.toLowerCase();
+    if (EMAIL_RE.test(String(c.value || '').trim()) || /e-?mail|mail|courriel/.test(String(c.label || '').toLowerCase())) return Mail;
+    if (/^\+?[\d\s().-]{6,}$/.test(String(c.value || '').trim()) || /t[ée]l|phone|whatsapp|mobile/.test(String(c.label || '').toLowerCase())) return Phone;
+    if (/adresse|localisation|lieu|situ[ée]|abidjan/.test(text)) return MapPin;
+    return Globe;
+  };
+  const scrollToMessageForm = () => {
+    const el = document.getElementById('contact-form');
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    setTimeout(() => { const f = document.getElementById('msg-name'); if (f) f.focus({ preventScroll: true }); }, 600);
+  };
+
   const baseNavItems = [
     { id: 'accueil', label: 'Accueil', icon: Home },
     { id: 'bureau', label: 'Bureau', icon: Users },
@@ -1342,6 +1907,7 @@ function App() {
     { id: 'admin-space', label: 'Gestion Admin', icon: ShieldCheck, adminOnly: true },
     { id: 'historique', label: 'Historique', icon: ScrollText, adminOnly: true },
     { id: 'candidatures', label: 'Candidatures', icon: UserCheck, staffOnly: true },
+    { id: 'messages', label: 'Messages', icon: Mail, staffOnly: true },
     { id: 'partenaires', label: 'Partenaires', icon: Building },
     { id: 'contact', label: 'Contact', icon: Mail },
   ];
@@ -1818,7 +2384,7 @@ function App() {
   );
 
   const renderNewsCard = (item) => (
-<div key={item.id} className="glass-card rounded-3xl p-6 hover-scale space-y-4 relative">
+<div key={item.id} className={`glass-card rounded-3xl p-6 hover-scale space-y-4 relative ${ADMIS_RE.test(String(item.content || '')) ? 'md:col-span-2' : ''}`}>
       {isAdminLoggedIn && (
         <div className="absolute top-3 right-3 z-10 flex gap-2">
           <button onClick={() => openEditResource('news', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 backdrop-blur border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-4 h-4" /></button>
@@ -1846,7 +2412,16 @@ function App() {
         })()}
       </div>
       <h4 className="font-serif text-xl font-bold text-stone-900">{item.title}</h4>
-      <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(item.content)}</p>
+      {(() => {
+        const adm = parseAdmis(item.content);
+        if (!adm) return <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(item.content)}</p>;
+        return (
+          <>
+            {adm.intro && <p className="text-stone-600 text-sm leading-relaxed whitespace-pre-line break-words">{renderWithLinks(adm.intro)}</p>}
+            <AdmisList rows={adm.rows} limit={adm.limit} />
+          </>
+        );
+      })()}
       {item.link && normalizeUrl(item.link) && (
         <a href={normalizeUrl(item.link)} target="_blank" rel="noopener noreferrer" className="hover-scale inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 max-w-full">
           <LinkIcon className="w-4 h-4 flex-shrink-0" />
@@ -2203,7 +2778,33 @@ function App() {
         const renderField = (field) => {
           const id = `field-${field.key}`;
           const value = resourceForm[field.key] || '';
-          if (field.type === 'textarea') return <textarea id={id} rows="4" value={value} onChange={e => setField(field.key, e.target.value)} className={inputClass} />;
+          if (field.type === 'textarea') {
+            const isNewsContent = resourceModal.type === 'news' && field.key === 'content';
+            return (
+              <>
+                <textarea id={id} rows={isNewsContent ? 8 : 4} value={value} onChange={e => setField(field.key, e.target.value)} className={inputClass} />
+                {isNewsContent && !ADMIS_RE.test(String(value)) && (
+                  <button type="button" onClick={() => setField('content', (value ? value + '\n' : '') + ADMIS_TEMPLATE)} className="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-500/10 border border-orange-500/25 text-xs font-semibold text-orange-700 hover:bg-orange-600 hover:text-white">
+                    <Plus className="w-4 h-4" /> Insérer le modèle « Liste des admis »
+                  </button>
+                )}
+                {isNewsContent && ADMIS_RE.test(String(value)) && (
+                  <div className="mt-2 space-y-2.5">
+                    <label htmlFor="admis-limit" className="flex flex-wrap items-center gap-2 text-xs font-semibold text-stone-700">
+                      Affichage de la liste :
+                      <select id="admis-limit" value={(String(value).match(ADMIS_RE) || [])[1] || ''} onChange={e => setField('content', String(value).replace(ADMIS_RE, e.target.value ? `[[ADMIS:${e.target.value}]]` : ADMIS_MARK))} className="px-3 py-1.5 rounded-xl bg-white/70 border border-stone-200 text-xs font-normal">
+                        <option value="">Toute la liste (jusqu'à 30 admis)</option>
+                        <option value="10">10 premiers, puis « Voir la liste complète »</option>
+                        <option value="15">15 premiers, puis « Voir la liste complète »</option>
+                        <option value="20">20 premiers, puis « Voir la liste complète »</option>
+                      </select>
+                    </label>
+                    <p className="text-[11px] leading-snug text-stone-500">Gardez la ligne <strong>[[ADMIS…]]</strong>, puis écrivez <strong>une ligne par admis, dans l'ordre de mérite</strong>, au format <strong>Nom | Section | Niveau</strong>. Le rang est calculé automatiquement ; les trois premiers forment le podium.</p>
+                  </div>
+                )}
+              </>
+            );
+          }
           if (field.type === 'select') return (
             <select id={id} value={value || optValue(field.options[0])} onChange={e => setField(field.key, e.target.value)} className={inputClass}>
               {field.options.map(o => { const v = typeof o === 'string' ? o : o.value; const l = typeof o === 'string' ? o : o.label; return <option key={v} value={v}>{l}</option>; })}
@@ -2330,9 +2931,14 @@ function App() {
                   L'espace communautaire interactif dédié à la cohésion, aux opportunités de carrière et au rayonnement des élèves officiers et ingénieurs.
                 </p>
                 {!isUserAuthenticated && (
-                  <button onClick={() => setShowMemberModal(true)} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm">
-                    <Key className="w-4 h-4" /> Connectez-vous pour voir les opportunités
-                  </button>
+                  <div className="flex flex-wrap gap-3">
+                    <button onClick={() => setShowMemberModal(true)} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-orange-600 text-white font-semibold shadow-lg shadow-orange-600/30 text-sm">
+                      <Key className="w-4 h-4" /> Connectez-vous pour voir les opportunités
+                    </button>
+                    <button type="button" onClick={goToAdhesion} className="hover-scale inline-flex items-center gap-2 px-6 py-3 rounded-2xl bg-white/85 text-orange-700 border border-orange-500/40 font-semibold text-sm">
+                      <UserCheck className="w-4 h-4" /> Devenir membre
+                    </button>
+                  </div>
                 )}
                 {!HERO_PHOTO && (
                   <div className="md:hidden pt-2 -mx-2 pointer-events-none">
@@ -2341,6 +2947,19 @@ function App() {
                 )}
               </div>
             </div>
+
+            {/* DEVENIR NOUVEAU MEMBRE */}
+            <button type="button" onClick={goToAdhesion} className="glass-card hover-scale w-full text-left rounded-3xl p-5 sm:p-6 flex items-center gap-4 border border-orange-500/30">
+              <span className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0"><UserCheck className="w-6 h-6 sm:w-7 sm:h-7 text-orange-600" /></span>
+              <span className="min-w-0 flex-1 space-y-1">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-serif text-lg sm:text-xl font-bold text-stone-900">Devenir nouveau membre</span>
+                  {adhesionOpen !== null && <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${adhesionOpen ? 'text-emerald-700 bg-emerald-500/10 border-emerald-500/25' : 'text-stone-600 bg-stone-500/10 border-stone-400/30'}`}>{adhesionOpen ? 'Adhésions ouvertes' : 'Adhésions fermées'}</span>}
+                </span>
+                <span className="block text-sm text-stone-600">Qui peut adhérer, comment s'inscrire et ce qui vous attend : découvrez le parcours.</span>
+              </span>
+              <ChevronDown className="w-5 h-5 text-orange-600 -rotate-90 flex-shrink-0" />
+            </button>
 
             {/* CE QUE FAIT LA CGE */}
             <section aria-label="Ce que fait la CGE" className="space-y-6">
@@ -2878,6 +3497,80 @@ function App() {
           </div>
         )}
 
+        {/* DEVENIR NOUVEAU MEMBRE (page ouverte depuis l'accueil) */}
+        {activeTab === 'adhesion' && <AdhesionPage onBack={() => { setActiveTab('accueil'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} adhesionOpen={adhesionOpen} isStaff={isStaffLoggedIn} onToggle={toggleAdhesion} toggling={adhesionBusy} rpc={rpc} candidates={isStaffLoggedIn ? (inbox === null ? null : inbox.filter(x => x.subject === 'Adhésion')) : []} onFees={setMessageFees} fmt={fmtDateTime} />}
+
+        {/* MESSAGES VIEW (secrétariat & admins) */}
+        {activeTab === 'messages' && isStaffLoggedIn && (() => {
+          const list = inbox || [];
+          const shown = list.filter(m => inboxFilter === 'all' ? true : inboxFilter === 'new' ? m.status === 'new' : m.subject === inboxFilter);
+          const chips = [
+            { key: 'all', label: 'Tous', n: list.length },
+            { key: 'new', label: 'Non lus', n: unreadCount },
+            ...MESSAGE_SUBJECTS.map(s => ({ key: s, label: s, n: list.filter(m => m.subject === s).length })),
+          ];
+          return (
+            <div className="space-y-6">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="font-serif text-3xl font-bold text-stone-900">Messages reçus</h2>
+                  <p className="text-stone-500">Messages envoyés depuis la rubrique Contact. Visible uniquement par le secrétariat et les administrateurs.</p>
+                </div>
+                <button onClick={() => loadInbox(false)} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600"><RefreshCw className="w-4 h-4" /> Actualiser</button>
+              </div>
+              {inbox === null ? (
+                <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Chargement des messages… Si rien n'apparaît, appuyez sur « Actualiser ».</div>
+              ) : (
+                <>
+                  <div className="flex flex-wrap gap-2">
+                    {chips.map(c => (
+                      <button key={c.key} onClick={() => setInboxFilter(c.key)} aria-pressed={inboxFilter === c.key}
+                        className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border ${inboxFilter === c.key ? 'bg-orange-600 text-white border-orange-600 shadow-md shadow-orange-600/25' : 'bg-white/80 text-stone-700 border-stone-200 hover:text-orange-600'}`}>
+                        {c.label} <span className="opacity-70">({c.n})</span>
+                      </button>
+                    ))}
+                  </div>
+                  {shown.length === 0 ? (
+                    <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">{list.length === 0 ? 'Aucun message pour le moment.' : 'Aucun message dans cette catégorie.'}</div>
+                  ) : (
+                    <div className="space-y-4">
+                      {shown.map(m => {
+                        const isNew = m.status === 'new';
+                        const long = (m.message || '').length > 220 || (m.message || '').split('\n').length > 3;
+                        const expanded = !!openMessages[m.id];
+                        return (
+                          <div key={m.id} className={`glass-card p-5 sm:p-6 rounded-3xl space-y-3 ${isNew ? 'border-orange-400/60' : ''}`}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className={`inline-block text-xs font-bold px-3 py-1 rounded-full border ${SUBJECT_STYLE[m.subject] || SUBJECT_STYLE['Autre']}`}>{m.subject}</span>
+                                {isNew && <span className="inline-block text-xs font-bold px-3 py-1 rounded-full bg-rose-500 text-white">Nouveau</span>}
+                                {m.subject === 'Adhésion' && m.fees_paid && <span className="inline-block text-xs font-bold px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-700 border border-emerald-500/30">Frais réglés</span>}
+                              </div>
+                              <p className="text-xs text-stone-400">{fmtDateTime(m.created_at)}</p>
+                            </div>
+                            <div className="min-w-0">
+                              <h3 className="font-serif text-lg font-bold text-stone-900 break-words">{m.name}</h3>
+                              <a href={`mailto:${m.email}`} className="text-sm text-orange-600 font-semibold break-all hover:underline underline-offset-2">{m.email}</a>
+                            </div>
+                            <p className={`text-sm text-stone-700 whitespace-pre-line break-words ${long && !expanded ? 'line-clamp-3' : ''}`}>{m.message}</p>
+                            <div className="flex flex-wrap items-center gap-2 pt-1">
+                              {long && <button onClick={() => toggleMessage(m)} className="px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600">{expanded ? 'Réduire' : 'Lire la suite'}</button>}
+                              <a href={`mailto:${m.email}?subject=${encodeURIComponent('Re: ' + m.subject + ' — CGE ARSTM')}`} onClick={() => { if (isNew) setMessageStatus(m, 'read'); }} className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-orange-600 text-white text-xs font-semibold"><Mail className="w-4 h-4" /> Répondre</a>
+                              <button onClick={() => setMessageStatus(m, isNew ? 'read' : 'new')} className="px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600">{isNew ? 'Marquer comme lu' : 'Marquer comme non lu'}</button>
+                              {m.subject === 'Adhésion' && <FeesButton m={m} onFees={setMessageFees} />}
+                              <button onClick={() => deleteMessage(m)} aria-label={`Supprimer le message de ${m.name}`} className="w-9 h-9 rounded-full bg-white/80 border border-stone-200 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
+
         {/* ACTIVITES VIEW */}
         {activeTab === 'activites' && (
           <div className="space-y-8">
@@ -3175,11 +3868,14 @@ function App() {
                   const href = contactHref(c.value);
                   return (
                     <li key={c.id} className="py-3 flex items-center justify-between gap-4">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex items-center gap-3">
+                        {(() => { const CI = contactIcon(c); return <span className="w-10 h-10 rounded-2xl bg-orange-500/12 border border-orange-500/20 flex items-center justify-center flex-shrink-0"><CI className="w-[18px] h-[18px] text-orange-600" /></span>; })()}
+                        <div className="min-w-0">
                         <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">{c.label}</p>
                         {href
                           ? <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" className="text-stone-900 font-semibold text-sm break-words hover:text-orange-600 underline-offset-2 hover:underline">{c.value}</a>
                           : <p className="text-stone-900 font-semibold text-sm break-words">{c.value}</p>}
+                        </div>
                       </div>
                       {canEdit('contacts') && (
                         <div className="flex gap-2 flex-shrink-0">
@@ -3190,8 +3886,25 @@ function App() {
                     </li>
                   );
                 })}
+                <li className="py-3">
+                  <button type="button" onClick={scrollToMessageForm} className="group flex items-center gap-3 text-left w-full">
+                    <span className="w-10 h-10 rounded-2xl bg-orange-500/12 border border-orange-500/20 flex items-center justify-center flex-shrink-0 group-hover:bg-orange-600 transition-colors duration-200"><Send className="w-[18px] h-[18px] text-orange-600 group-hover:text-white" /></span>
+                    <span className="min-w-0">
+                      <span className="block text-[11px] font-bold uppercase tracking-wide text-orange-600">Messagerie</span>
+                      <span className="block text-stone-900 font-semibold text-sm group-hover:text-orange-600">Nous écrire</span>
+                    </span>
+                  </button>
+                </li>
+                <li className="py-3 flex items-center gap-3">
+                  <span className="w-10 h-10 rounded-2xl bg-rose-400/15 border border-rose-400/30 flex items-center justify-center flex-shrink-0"><Handshake className="w-[18px] h-[18px] text-rose-600" /></span>
+                  <div className="min-w-0">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-orange-600">Partenaire officiel</p>
+                    <p className="text-stone-900 font-semibold text-sm break-words">Fondation Benianh International</p>
+                  </div>
+                </li>
               </ul>
             )}
+            <ContactMessageForm rpc={rpc} />
             <div className="pt-6 border-t border-stone-200/70 text-center space-y-3">
               <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">Notre partenaire</p>
               <div className="mx-auto max-w-md rounded-3xl bg-white/70 border border-orange-500/20 shadow-lg shadow-orange-600/10 p-5">
@@ -3335,6 +4048,7 @@ function App() {
               >
                 <Icon className="w-4 h-4" />
                 <span className="hidden sm:inline">{item.label}</span>
+                {item.id === 'messages' && unreadCount > 0 && <span aria-label={`${unreadCount} message${unreadCount > 1 ? 's' : ''} non lu${unreadCount > 1 ? 's' : ''}`} className="absolute top-1 right-1 min-w-[1.1rem] h-[1.1rem] px-1 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shadow">{unreadCount > 99 ? '99+' : unreadCount}</span>}
               </button>
             );
           })}
