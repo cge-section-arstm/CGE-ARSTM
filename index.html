@@ -129,17 +129,13 @@
   .art-beam { opacity: 0.55; transition: opacity 0.6s ease; }
   .glass-card:hover .art-beam { opacity: 1; }
 
-  /* « À l'affiche » : annonces imminentes (actualités, événements, formations) */
-  @keyframes upcIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
-  @keyframes upcPulse { 0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); } 70% { box-shadow: 0 0 0 9px rgba(234, 88, 12, 0); } 100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); } }
-  @keyframes upcBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
-  @keyframes upcGlow { 0%, 100% { box-shadow: 0 10px 30px rgba(234, 88, 12, 0.16); } 50% { box-shadow: 0 14px 40px rgba(234, 88, 12, 0.36); } }
-  @keyframes upcShine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(320%) skewX(-18deg); } }
-  .upc-card { position: relative; overflow: hidden; border-radius: 1.5rem; background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(253, 228, 234, 0.85)); border: 1px solid rgba(234, 88, 12, 0.35); animation: upcGlow 3.2s ease-in-out infinite; }
-  .upc-card::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 28%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent); animation: upcShine 6s ease-in-out infinite; pointer-events: none; }
-  .upc-slide { animation: upcIn 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
-  .upc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 9999px; background: #EA580C; animation: upcPulse 1.8s infinite; }
-  .upc-bar { transform-origin: left; animation: upcBar 5.5s linear forwards; }
+  /* Fanion du bateau de l'accueil : annonce la prochaine échéance (actualité, événement, formation) */
+  @keyframes flagWave { from { transform: skewY(-3deg) scaleX(0.97); } to { transform: skewY(3deg) scaleX(1); } }
+  @keyframes flagIn { from { opacity: 0; } to { opacity: 1; } }
+  .flag-wave { transform-origin: 56px -20px; animation: flagWave 1.9s ease-in-out infinite alternate; }
+  .flag-txt { animation: flagIn 0.6s ease-out; }
+  @keyframes flagScroll { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--flag-shift, 0px)); } }
+  .flag-scroll { animation: flagScroll var(--flag-dur, 6s) ease-in-out infinite alternate; }
 
   /* Vague très lente sous le titre de l'accueil */
   .wave-layer { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; overflow: hidden; pointer-events: none; z-index: 0; }
@@ -193,7 +189,7 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
     .hover-scale:hover, .glass-card.hover-scale:hover { transform: none; }
-    .tab-fade, .wave-a, .wave-b, .compass-spin, .ship-bob, .route-flow, .route-pulse, .upc-card, .upc-card::after, .upc-slide, .upc-dot, .upc-bar { animation: none; }
+    .tab-fade, .wave-a, .wave-b, .compass-spin, .ship-bob, .route-flow, .route-pulse, .flag-wave, .flag-txt, .flag-scroll { animation: none; }
     #splash img { animation: none; }
     #splash .splash-bar span { animation: none; width: 100%; opacity: 0.5; }
     .fixed.inset-0.z-50, .fixed.inset-0.z-50 > .glass-card, .fixed.inset-0.z-50 > [role="dialog"], .fixed.inset-0.z-50 > [role="alertdialog"] { animation: none; }
@@ -656,8 +652,8 @@ const MaritimeBackground = () => (
 
 const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-const HeroShip = () => (
-  <svg className="w-full h-auto" viewBox="0 0 560 260" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+const HeroShip = ({ flag }) => (
+  <svg className="w-full h-auto" viewBox={flag ? '0 -68 560 328' : '0 0 560 260'} fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
     {/* Porte-conteneurs */}
     <g className="ship-bob">
       {/* conteneurs */}
@@ -676,6 +672,7 @@ const HeroShip = () => (
       {/* coque */}
       <path d="M40 134 H500 L472 176 H78 Z" fill="#57534e" opacity="0.85" />
       <path d="M78 176 H472 L468 182 H84 Z" fill="#EA580C" opacity="0.7" />
+      {flag}
     </g>
     {/* mer */}
     <g stroke="#F2A4B8" strokeWidth="2" strokeLinecap="round" fill="none">
@@ -779,48 +776,60 @@ const collectUpcoming = (newsList, eventList, now) => {
   (eventList || []).forEach(e => add('event', e));
   return out.sort((a, b) => a.t - b.t).slice(0, 5);
 };
-const UPC_KIND_STYLE = { 'Formation': 'bg-rose-500/15 text-rose-700 border-rose-500/30', 'Événement': 'bg-orange-500/15 text-orange-700 border-orange-500/30', 'Actualité': 'bg-stone-500/10 text-stone-700 border-stone-400/30' };
-const UpcomingSpotlight = ({ items, onOpen, className = '' }) => {
+const FLAG_TEXT_W = 332; // largeur visible du titre sur le fanion ; au-delà, le titre défile
+const HeroShipFlag = ({ items, onOpen }) => {
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [meas, setMeas] = useState({ key: null, shift: 0 });
+  const titleRef = useRef(null);
   const n = items.length;
+  const it = n ? items[Math.min(idx, n - 1)] : null;
+  const reduce = prefersReducedMotion();
+  const shift = it && !reduce && meas.key === it.key ? meas.shift : 0;
+  const scrollSec = shift ? Math.max(4, shift / 40 / 0.7) : 0; // ~40 unités par seconde, avec une pause à chaque bout
+  const slideMs = shift ? Math.round(scrollSec * 1000) + 700 : UPCOMING_SLIDE_MS;
   useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
   useEffect(() => {
-    if (n < 2 || paused || prefersReducedMotion()) return;
-    const id = setTimeout(() => setIdx(i => (i + 1) % n), UPCOMING_SLIDE_MS);
+    if (!it || reduce) return;
+    const el = titleRef.current;
+    const w = el && el.getComputedTextLength ? el.getComputedTextLength() : 0;
+    setMeas({ key: it.key, shift: w > FLAG_TEXT_W ? Math.ceil(w - FLAG_TEXT_W + 14) : 0 });
+  }, [it && it.key]);
+  useEffect(() => {
+    if (n < 2 || paused || reduce) return;
+    const id = setTimeout(() => setIdx(i => (i + 1) % n), slideMs);
     return () => clearTimeout(id);
-  }, [idx, n, paused]);
-  if (!n) return null;
-  const cur = Math.min(idx, n - 1);
-  const it = items[cur];
+  }, [idx, n, paused, slideMs]);
+  if (!n) return <HeroShip />;
   const info = countdownInfo(it.rawDate, now);
   const soon = it.t - now < 3 * 86400000;
-  return (
-    <section aria-label="À l'affiche : prochaines échéances" aria-live="polite" className={`upc-card p-4 sm:p-5 pointer-events-auto ${className}`}
-      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)}>
-      <div className="flex items-center justify-between gap-3 mb-3">
-        <span className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-orange-700"><span className="upc-dot" aria-hidden="true" /> {soon ? 'Bientôt' : 'À l\'affiche'}</span>
-        {n > 1 && <span className="text-[10px] font-bold text-stone-500">{cur + 1} / {n}</span>}
-      </div>
-      <button key={it.key} type="button" onClick={() => onOpen(it)} className="upc-slide block w-full text-left space-y-2">
-        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full border ${UPC_KIND_STYLE[it.kind]}`}>{it.kind}</span>
-        <span className="block font-serif text-base sm:text-lg font-bold text-stone-900 leading-snug line-clamp-2">{it.title}</span>
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600"><Calendar className="w-3.5 h-3.5 text-orange-600" /> {it.date}</span>
-          {info && <span className={`inline-flex items-center gap-1.5 text-white px-3 py-1 rounded-full text-[11px] font-bold ${soon ? 'bg-rose-600' : 'bg-orange-600'}`}><Clock className="w-3.5 h-3.5" /> {info.text}</span>}
-        </span>
-      </button>
-      {n > 1 && (
-        <div className="mt-4 flex items-center gap-3">
-          <div className="flex gap-1.5">
-            {items.map((x, i) => <button key={x.key} type="button" aria-label={`Annonce ${i + 1}`} onClick={() => setIdx(i)} className={`h-2 rounded-full transition-all duration-300 ${i === cur ? 'w-5 bg-orange-600' : 'w-2 bg-orange-300'}`} />)}
-          </div>
-          <div className="flex-1 h-1 rounded-full bg-orange-500/15 overflow-hidden"><span key={`${cur}-${paused ? 'p' : 'r'}`} className="upc-bar block h-full bg-orange-500/70" style={{ animationPlayState: paused ? 'paused' : 'running' }} /></div>
-        </div>
-      )}
-    </section>
+  const title = reduce && it.title.length > 30 ? it.title.slice(0, 29).trimEnd() + '…' : it.title;
+  const label = `${it.kind}${info ? ' · ' + info.text : ''}`;
+  const full = `${it.kind} : ${it.title}, ${it.date}${info ? ', ' + info.text : ''}`;
+  const flag = (
+    <>
+      <path d="M56 -62V134" stroke="#57534e" strokeWidth="4" strokeLinecap="round" />
+      <circle cx="56" cy="-64" r="5" fill="#EA580C" />
+      <g role="link" tabIndex={0} aria-label={full} style={{ pointerEvents: 'all', cursor: 'pointer', outline: 'none' }}
+        onClick={() => onOpen(it)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(it); } }}
+        onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)}
+        onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)}>
+        <g className="flag-wave">
+          <path d="M58 -56H440L414 -24L440 8H58Z" fill={soon ? '#BE123C' : '#EA580C'} />
+          <g key={it.key} className="flag-txt">
+            <text x="74" y="-29" fill="#fff" fontSize="21" fontWeight="700">{label}</text>
+            <svg x="74" y="-24" width={FLAG_TEXT_W} height="32" overflow="hidden">
+              <text ref={titleRef} x="0" y="20" fill="#fff" fillOpacity="0.95" fontSize="18"
+                className={shift ? 'flag-scroll' : undefined}
+                style={shift ? { '--flag-shift': `-${shift}px`, '--flag-dur': `${scrollSec}s`, animationPlayState: paused ? 'paused' : 'running' } : undefined}>{title}</text>
+            </svg>
+          </g>
+        </g>
+      </g>
+    </>
   );
+  return <HeroShip flag={flag} />;
 };
 
 // Petits dessins minimalistes (une scène par mission) : univers maritime, traits volontairement inachevés, comme un croquis
@@ -3332,16 +3341,9 @@ function App() {
                   <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/20" />
                 </>
               ) : (
-                upcomingItems.length > 0 ? (
-                  <div className="hidden md:flex absolute right-6 top-6 bottom-4 w-[44%] max-w-[480px] flex-col justify-between gap-4 pointer-events-none">
-                    <UpcomingSpotlight items={upcomingItems} onOpen={openUpcoming} />
-                    <div className="w-[38%] self-end opacity-90"><HeroShip /></div>
-                  </div>
-                ) : (
-                  <div className="hidden md:block absolute right-6 bottom-4 w-[46%] max-w-[520px] opacity-90 pointer-events-none">
-                    <HeroShip />
-                  </div>
-                )
+                <div className="hidden md:block absolute right-6 bottom-4 w-[46%] max-w-[520px] opacity-90 pointer-events-none">
+                  <HeroShipFlag items={upcomingItems} onOpen={openUpcoming} />
+                </div>
               )}
               <div className="relative z-10 max-w-2xl md:max-w-[48%] space-y-6">
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/15 text-orange-700 border border-orange-500/30 text-xs font-semibold tracking-wide">
@@ -3363,10 +3365,9 @@ function App() {
                     </button>
                   </div>
                 )}
-                {upcomingItems.length > 0 && <UpcomingSpotlight items={upcomingItems} onOpen={openUpcoming} className="md:hidden" />}
                 {!HERO_PHOTO && (
-                  <div className={upcomingItems.length > 0 ? 'md:hidden pt-1 mx-auto w-[55%] max-w-[210px] pointer-events-none' : 'md:hidden pt-2 -mx-2 pointer-events-none'}>
-                    <HeroShip />
+                  <div className="md:hidden pt-2 -mx-2 pointer-events-none">
+                    <HeroShipFlag items={upcomingItems} onOpen={openUpcoming} />
                   </div>
                 )}
               </div>
