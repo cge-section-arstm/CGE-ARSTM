@@ -51,8 +51,9 @@
   html { scroll-padding-top: env(safe-area-inset-top, 0px); }
   body {
     margin: 0;
-    background: linear-gradient(180deg, #fdeaee 0%, #f1efee 38%, #ffe9d8 100%);
-    background-attachment: fixed;
+    background: linear-gradient(180deg,
+      #fde3ea 0%, #fde5e5 12%, #fde6dd 26%, #fee6d3 40%, #ffe5c9 54%, #ffe7cf 68%, #ffeadb 82%, #fff1e4 100%);
+    background-attachment: scroll;
     min-height: 100vh;
   }
 
@@ -91,10 +92,23 @@
   /* Cartes : survol plus doux (léger soulèvement + ombre orangée, sans gros zoom) */
   .glass-card.hover-scale { transition: transform 0.3s ease, box-shadow 0.3s ease; }
   .glass-card.hover-scale:hover { transform: translateY(-4px); box-shadow: 0 26px 55px rgba(244, 164, 184, 0.30), inset 0 1px 0 rgba(255, 255, 255, 0.8); }
-  /* Rythme de teintes dans les grilles de cartes : neutre, rose pastel, pêche, gris */
-  .glass-card.hover-scale:nth-child(4n+2) { background: linear-gradient(135deg, rgba(251, 208, 219, 0.42), rgba(255, 255, 255, 0.45)); }
-  .glass-card.hover-scale:nth-child(4n+3) { background: linear-gradient(135deg, rgba(253, 186, 116, 0.28), rgba(255, 255, 255, 0.45)); }
-  .glass-card.hover-scale:nth-child(4n+4) { background: linear-gradient(135deg, rgba(168, 162, 158, 0.20), rgba(255, 255, 255, 0.45)); }
+  /* Teintes des cartes : dégradé successif (blanc -> rose -> rose-pêche -> pêche -> retour), pas de saut de couleur entre deux cartes voisines */
+  .glass-card.hover-scale:nth-child(6n+2) { background: linear-gradient(135deg, rgba(251, 208, 219, 0.26), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(6n+3) { background: linear-gradient(135deg, rgba(252, 201, 185, 0.32), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(6n+4) { background: linear-gradient(135deg, rgba(253, 190, 140, 0.34), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(6n+5) { background: linear-gradient(135deg, rgba(252, 201, 185, 0.32), rgba(255, 255, 255, 0.45)); }
+  .glass-card.hover-scale:nth-child(6n+6) { background: linear-gradient(135deg, rgba(251, 208, 219, 0.26), rgba(255, 255, 255, 0.45)); }
+  /* Accueil : un seul flux. Ombres et bordures allégées, bandeaux en lavis dégradé (sans cadre) */
+  .home-flow .glass-card { border-color: rgba(255, 255, 255, 0.45); box-shadow: 0 10px 30px rgba(194, 100, 60, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7); }
+  .flow-band { background: linear-gradient(100deg, rgba(251, 146, 60, 0.13) 0%, rgba(252, 201, 185, 0.18) 50%, rgba(251, 208, 219, 0.16) 100%); }
+  /* Éléments « à plat » : plus de carte, le contenu est posé directement sur le dégradé */
+  .home-flow .glass-card.flat.hover-scale,
+  .home-flow .glass-card.flat.hover-scale:hover { background: transparent !important; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  /* Frise du programme : un trait relie les quatre ronds (grand écran) */
+  .timeline-ol { position: relative; }
+  .timeline-ol > li { position: relative; z-index: 1; }
+  .timeline-ol::before { content: ''; position: absolute; left: 12.5%; right: 12.5%; top: 3.5rem; height: 1px; background: linear-gradient(90deg, transparent, rgba(234, 88, 12, 0.45) 18%, rgba(234, 88, 12, 0.45) 82%, transparent); }
+  @media (max-width: 1023px) { .timeline-ol::before { display: none; } }
   /* Boutons et liens : changements de couleur en douceur */
   button, a { transition: background-color 0.25s ease, color 0.25s ease, border-color 0.25s ease, opacity 0.25s ease; }
 
@@ -2613,14 +2627,23 @@ function App() {
 
   // Case « Afficher cet album sur l'accueil » : s'applique à toutes les photos et vidéos de l'album
   const [homeBusy, setHomeBusy] = useState(false);
+  const [homeProg, setHomeProg] = useState('');
+  // Pendant la mise à jour, le navigateur demande confirmation avant de fermer ou rafraîchir la page
+  useEffect(() => {
+    if (!homeBusy) return;
+    const warn = (e) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [homeBusy]);
   const setAlbumHome = async (albumName, show) => {
     if (!canEdit('gallery') || homeBusy) return;
     setBulkOnHome(show);
     const targets = galleryRaw.filter(r => { const n = normGallery(r); return n && !n.isAlbum && !n.placeholder && (n.category || 'Divers') === albumName && n.onHome !== show; });
     if (!targets.length) return;
     setHomeBusy(true);
-    let ok = 0;
+    let ok = 0, done = 0;
     for (const r of targets) {
+      setHomeProg(`${done + 1}/${targets.length}`);
       const base = String(r.date || '').replace(HOME_HIDE_RE, '').trim();
       const date = (base + (show ? '' : ' [hors accueil]')).trim();
       try {
@@ -2630,9 +2653,25 @@ function App() {
       } catch (err) {
         showToastMsg('Mise à jour impossible : ' + explainDbError(err), 'error');
       }
+      done++;
+    }
+    // Vérification auprès du serveur (lecture légère : id et date seulement), pour ne pas afficher un réglage que le serveur n'a pas gardé
+    let bad = 0;
+    if (ok && supabaseClient) {
+      try {
+        const { data: chk, error: chkErr } = await supabaseClient.from('gallery').select('id, date').in('id', targets.map(r => r.id));
+        if (!chkErr && chk) {
+          const wrong = chk.filter(c => HOME_HIDE_RE.test(String(c.date || '')) === show);
+          bad = wrong.length;
+          if (bad) setGallery(prev => prev.map(i => { const c = chk.find(x => x.id === i.id); return c ? { ...i, date: c.date } : i; }));
+        }
+      } catch (e) { console.error('Vérification de l’accueil :', e); }
     }
     setHomeBusy(false);
-    if (ok) { showToastMsg(show ? `Album affiché sur l'accueil (${ok} élément${ok > 1 ? 's' : ''}).` : `Album retiré de l'accueil (${ok} élément${ok > 1 ? 's' : ''}).`, 'success'); afterStaffWrite(); }
+    setHomeProg('');
+    if (bad) showToastMsg(`Le serveur n'a pas gardé le réglage pour ${bad} élément${bad > 1 ? 's' : ''} : l'affichage est revenu à l'état réel. Réessayez ; si cela se répète, regardez la colonne « date » de la table gallery dans Supabase.`, 'error');
+    else if (ok) { showToastMsg(show ? `Album affiché sur l'accueil (${ok} élément${ok > 1 ? 's' : ''}).` : `Album retiré de l'accueil (${ok} élément${ok > 1 ? 's' : ''}).`, 'success'); }
+    if (ok) afterStaffWrite();
   };
 
   const handleBulkUpload = async (albumName, allFiles, onHome) => {
@@ -3329,7 +3368,7 @@ function App() {
         
         {/* HOMEPAGE VIEW */}
         {activeTab === 'accueil' && (
-          <div className="space-y-12">
+          <div className="home-flow space-y-14 sm:space-y-20">
             <div className="relative rounded-3xl overflow-hidden glass-card p-8 sm:p-14 border border-white/80">
               <div className="wave-layer" aria-hidden="true">
                 <svg className="wave-a" viewBox="0 0 2400 64" preserveAspectRatio="none"><path d="M0 32 C 200 8, 400 8, 600 32 S 1000 56, 1200 32 S 1600 8, 1800 32 S 2200 56, 2400 32 V64 H0 Z" fill="rgba(244,164,184,0.28)" /></svg>
@@ -3374,7 +3413,7 @@ function App() {
             </div>
 
             {/* DEVENIR NOUVEAU MEMBRE */}
-            <button type="button" onClick={goToAdhesion} className="glass-card hover-scale w-full text-left rounded-3xl p-5 sm:p-6 flex items-center gap-4 border border-orange-500/30">
+            <button type="button" onClick={goToAdhesion} className="flow-band hover-scale w-full text-left rounded-3xl p-5 sm:p-6 flex items-center gap-4">
               <span className="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-orange-500/15 border border-orange-500/25 flex items-center justify-center flex-shrink-0"><UserCheck className="w-6 h-6 sm:w-7 sm:h-7 text-orange-600" /></span>
               <span className="min-w-0 flex-1 space-y-1">
                 <span className="flex flex-wrap items-center gap-2">
@@ -3399,8 +3438,8 @@ function App() {
                 {CGE_MISSIONS.map(m => {
                   const Art = m.art;
                   return (
-                    <div key={m.title} className="glass-card hover-scale rounded-3xl p-5 sm:p-6 space-y-3">
-                      <div className="h-36 rounded-2xl bg-orange-50/60 border border-orange-500/10 flex items-center justify-center overflow-hidden">
+                    <div key={m.title} className="glass-card flat hover-scale rounded-3xl p-5 sm:p-6 space-y-3 text-center">
+                      <div className="h-36 flex items-center justify-center overflow-hidden">
                         <Art />
                       </div>
                       <h4 className="font-serif text-lg font-bold text-stone-900">{m.title}</h4>
@@ -3446,7 +3485,7 @@ function App() {
             })()}
 
             {/* NOTRE HISTOIRE */}
-            <section aria-label="Notre histoire" className="glass-card rounded-3xl p-6 sm:p-10 grid md:grid-cols-[auto,1fr] gap-8 md:gap-10 items-center">
+            <section aria-label="Notre histoire" className="px-1 sm:px-6 py-2 grid md:grid-cols-[auto,1fr] gap-8 md:gap-10 items-center">
               <div className="text-center md:text-left space-y-4 md:pr-10 md:border-r md:border-stone-300/60">
                 <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">Notre histoire</p>
                 <div className="inline-flex flex-col items-center md:items-start rounded-3xl bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white px-8 py-6 shadow-lg shadow-orange-600/25">
@@ -3485,14 +3524,14 @@ function App() {
                 <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">Les temps forts de notre année</h3>
                 <p className="text-sm sm:text-base text-stone-600 max-w-xl mx-auto">De la rentrée à la remise des diplômes, quatre rendez-vous rythment la vie de la CGE.</p>
               </div>
-              <ol className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+              <ol className="timeline-ol grid sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
                 {[
                   { n: 1, mois: 'Octobre', text: 'Rentrée & assemblée générale' },
                   { n: 2, mois: 'Novembre', text: 'Conférences métiers & sport' },
                   { n: 3, mois: 'Février', text: 'Forum entreprises & stages' },
                   { n: 4, mois: 'Juin', text: 'Gala & remise des diplômes' },
                 ].map(e => (
-                  <li key={e.n} className="glass-card hover-scale rounded-3xl p-6 sm:p-7 text-center space-y-3">
+                  <li key={e.n} className="glass-card flat hover-scale rounded-3xl p-6 sm:p-7 text-center space-y-3">
                     <div className="mx-auto w-14 h-14 rounded-full bg-gradient-to-br from-orange-500 via-orange-600 to-orange-700 text-white flex items-center justify-center font-serif text-2xl font-extrabold shadow-lg shadow-orange-600/30 ring-8 ring-orange-500/15">{e.n}</div>
                     <h4 className="font-serif text-xl font-extrabold text-orange-700">{e.mois}</h4>
                     <p className="text-sm text-stone-700 leading-relaxed">{e.text}</p>
@@ -3519,13 +3558,13 @@ function App() {
                   <h4 className="font-serif text-2xl font-extrabold text-stone-900">ESATIC</h4>
                   <p className="text-sm text-stone-600 leading-relaxed">École Supérieure Africaine des Technologies de l'Information et de la Communication</p>
                 </div>
-                <div style={{ background: 'linear-gradient(135deg, #0b1b34 0%, #132b4f 55%, #1f3558 100%)' }} className="hover-scale rounded-3xl p-6 sm:p-7 space-y-4 text-white shadow-xl shadow-slate-900/30">
-                  <div className="w-20 h-20 rounded-2xl bg-white shadow-md flex items-center justify-center p-1.5"><img src={SCHOOL_LOGOS.inphb} alt="Logo INP-HB" className="w-full h-full object-contain" draggable="false" /></div>
-                  <h4 className="font-serif text-2xl font-extrabold">INP-HB</h4>
-                  <p className="text-sm text-slate-300 leading-relaxed">Institut National Polytechnique Félix Houphouët-Boigny, Yamoussoukro</p>
+                <div className="hover-scale rounded-3xl p-6 sm:p-7 space-y-4 bg-white/80 border border-white/80 shadow-xl shadow-stone-900/5">
+                  <div className="w-20 h-20 rounded-2xl bg-white border border-stone-200 shadow-sm flex items-center justify-center p-1.5"><img src={SCHOOL_LOGOS.inphb} alt="Logo INP-HB" className="w-full h-full object-contain" draggable="false" /></div>
+                  <h4 className="font-serif text-2xl font-extrabold text-stone-900">INP-HB</h4>
+                  <p className="text-sm text-stone-600 leading-relaxed">Institut National Polytechnique Félix Houphouët-Boigny, Yamoussoukro</p>
                   <ul className="flex flex-wrap gap-2 pt-1">
                     {INPHB_SCHOOLS.map(e => (
-                      <li key={e.name} className="inline-flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-white/10 border border-white/25 text-xs font-bold text-white">
+                      <li key={e.name} className="inline-flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full bg-[#0b1b34]/5 border border-[#0b1b34]/15 text-xs font-bold text-slate-800">
                         <img src={e.logo} alt="" className="w-6 h-6 rounded-full" draggable="false" /> {e.name}
                       </li>
                     ))}
@@ -3540,7 +3579,7 @@ function App() {
             </section>
 
             {/* MOT DU PRÉSIDENT */}
-            <section aria-label="Le mot du Président" className="glass-card rounded-3xl p-5 sm:p-6 flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
+            <section aria-label="Le mot du Président" className="max-w-3xl mx-auto px-1 py-2 flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
               <img
                 src={PRESIDENT.photo}
                 alt={`Portrait de ${PRESIDENT.name}`}
@@ -3593,7 +3632,7 @@ function App() {
                   )}
                 </div>
               ) : (
-                <div className="glass-card rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4 border border-orange-500/20">
+                <div className="flow-band rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-4">
                   <div className="flex items-center gap-4 text-center sm:text-left">
                     <div className="hidden sm:flex w-12 h-12 rounded-2xl bg-orange-500/15 border border-orange-500/25 items-center justify-center flex-shrink-0"><Key className="w-6 h-6 text-orange-600" /></div>
                     <div>
@@ -4433,7 +4472,7 @@ function App() {
                       <button type="button" onClick={() => { openAddResource('video'); setResourceForm(f => ({ ...f, category: open.name })); }} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-orange-500/40 text-orange-700 text-xs font-semibold"><Plus className="w-4 h-4" /> Ajouter une vidéo</button>
                       <label className={`inline-flex items-center gap-2 text-xs text-stone-700 cursor-pointer ${homeBusy ? 'opacity-60 pointer-events-none' : ''}`}>
                         <input type="checkbox" disabled={homeBusy} checked={albumChecked} ref={el => { if (el) el.indeterminate = albumMixed; }} onChange={e => setAlbumHome(open.name, e.target.checked)} className="w-4 h-4 accent-orange-600" />
-                        <span>{homeBusy ? 'Mise à jour…' : "Afficher cet album sur l'accueil"}<span className="block text-[10px] text-stone-500">{albumMixed ? 'Certaines photos seulement : cocher les affiche toutes.' : 'Concerne toutes les photos et vidéos de l\'album.'}</span></span>
+                        <span>{homeBusy ? ('Mise à jour… ' + homeProg + ' (ne fermez pas la page)') : "Afficher cet album sur l'accueil"}<span className="block text-[10px] text-stone-500">{albumMixed ? 'Certaines photos seulement : cocher les affiche toutes.' : 'Concerne toutes les photos et vidéos de l\'album.'}</span></span>
                       </label>
                       {open.rec && (
                         <span className="flex gap-2 ml-auto">
