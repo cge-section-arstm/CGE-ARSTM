@@ -321,23 +321,32 @@ const PhotoTile = ({ item, onOpen, className = '', big = false }) => (
 
 const HomeSlideshow = ({ list, onOpen }) => {
   const n = list.length;
-  const [i, setI] = useState(0);
+  const [st, setSt] = useState({ i: 0, from: null, dir: 1, t: 0 });
   const [pause, setPause] = useState(false);
   const still = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const k = i % n;
-  useEffect(() => { if (n < 2 || pause || still) return; const t = setTimeout(() => setI(x => (x + 1) % n), 4500); return () => clearTimeout(t); }, [i, pause, n]);
-  const cur = list[k], nxt = list[(k + 1) % n];
+  const k = st.i % n;
+  const go = (to, dir) => setSt(s => ({ i: to, from: s.i % n, dir, t: s.t + 1 }));
+  useEffect(() => { if (n < 2 || pause || still) return; const t = setTimeout(() => go((k + 1) % n, 1), 4500); return () => clearTimeout(t); }, [st.i, pause, n]);
+  useEffect(() => { if (st.from === null) return; const t = setTimeout(() => setSt(s => ({ ...s, from: null })), 1000); return () => clearTimeout(t); }, [st.t]);
+  const cur = list[k];
+  const out = st.from !== null && st.from !== k ? list[st.from % n] : null;
+  const anim = (name) => (still ? undefined : { animation: `${name} .9s cubic-bezier(.65,0,.35,1) both`, willChange: 'transform' });
   const arrow = 'absolute top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/90 flex items-center justify-center text-stone-800 shadow';
+  const nxt = list[(k + 1) % n];
   return (
-    <div className="relative" onMouseEnter={() => setPause(true)} onMouseLeave={() => setPause(false)} onTouchStart={() => setPause(true)} onTouchEnd={() => setTimeout(() => setPause(false), 6000)}>
-      <PhotoTile key={cur.id} item={cur} onOpen={onOpen} big className="w-full aspect-[4/3] sm:aspect-[16/9]" />
-      {n > 1 && <>
-        <button type="button" onClick={() => setI((k - 1 + n) % n)} aria-label="Photo précédente" className={`${arrow} left-3`}><ChevronDown className="w-5 h-5 rotate-90" /></button>
-        <button type="button" onClick={() => setI((k + 1) % n)} aria-label="Photo suivante" className={`${arrow} right-3`}><ChevronDown className="w-5 h-5 -rotate-90" /></button>
-        <span className="absolute top-3 right-3 z-10 bg-stone-900/70 backdrop-blur text-white text-xs font-semibold px-3 py-1 rounded-full">{k + 1} / {n}</span>
-        {nxt && nxt.thumb && <img src={nxt.thumb} alt="" aria-hidden="true" loading="eager" className="hidden" />}
-        {n <= 14 && <div className="flex justify-center gap-1.5 mt-3">{list.map((g, j) => <button key={g.id} type="button" onClick={() => setI(j)} aria-label={`Photo ${j + 1}`} className={`h-2 rounded-full transition-all ${j === k ? 'w-6 bg-orange-600' : 'w-2 bg-stone-300'}`} />)}</div>}
-      </>}
+    <div className="relative lg:max-w-3xl lg:mx-auto" onMouseEnter={() => setPause(true)} onMouseLeave={() => setPause(false)} onTouchStart={() => setPause(true)} onTouchEnd={() => setTimeout(() => setPause(false), 6000)}>
+      <style>{'@keyframes cgeInR{from{transform:translate3d(100%,0,0)}to{transform:translate3d(0,0,0)}}@keyframes cgeInL{from{transform:translate3d(-100%,0,0)}to{transform:translate3d(0,0,0)}}@keyframes cgeOutL{from{transform:translate3d(0,0,0)}to{transform:translate3d(-100%,0,0)}}@keyframes cgeOutR{from{transform:translate3d(0,0,0)}to{transform:translate3d(100%,0,0)}}'}</style>
+      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl w-full aspect-[4/3] sm:aspect-[16/9] bg-stone-200">
+        {out && <div key={`o${st.t}`} className="absolute inset-0" style={anim(st.dir > 0 ? 'cgeOutL' : 'cgeOutR')}><PhotoTile item={out} onOpen={onOpen} big className="w-full h-full" /></div>}
+        <div key={`c${st.t}`} className="absolute inset-0" style={st.from !== null ? anim(st.dir > 0 ? 'cgeInR' : 'cgeInL') : undefined}><PhotoTile item={cur} onOpen={onOpen} big className="w-full h-full" /></div>
+        {n > 1 && <>
+          <button type="button" onClick={() => go((k - 1 + n) % n, -1)} aria-label="Photo précédente" className={`${arrow} left-3`}><ChevronDown className="w-5 h-5 rotate-90" /></button>
+          <button type="button" onClick={() => go((k + 1) % n, 1)} aria-label="Photo suivante" className={`${arrow} right-3`}><ChevronDown className="w-5 h-5 -rotate-90" /></button>
+          <span className="absolute top-3 right-3 z-10 bg-stone-900/70 backdrop-blur text-white text-xs font-semibold px-3 py-1 rounded-full">{k + 1} / {n}</span>
+        </>}
+      </div>
+      {n > 1 && nxt && nxt.thumb && <img src={nxt.thumb} alt="" aria-hidden="true" loading="eager" className="hidden" />}
+      {n > 1 && n <= 14 && <div className="flex justify-center gap-1.5 mt-3">{list.map((g, j) => <button key={g.id} type="button" onClick={() => j !== k && go(j, j > k ? 1 : -1)} aria-label={`Photo ${j + 1}`} className={`h-2 rounded-full transition-all duration-500 ${j === k ? 'w-6 bg-orange-600' : 'w-2 bg-stone-300'}`} />)}</div>}
     </div>
   );
 };
@@ -3525,7 +3534,7 @@ function App() {
                     <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">La vie de la CGE en photos</h3>
                   </div>
                   {!galleryReady && homePhotos.length === 0 ? (
-                    <div role="status" aria-label="Chargement des photos" className="animate-pulse rounded-3xl bg-stone-200/80 w-full aspect-[4/3] sm:aspect-[16/9]" />
+                    <div role="status" aria-label="Chargement des photos" className="animate-pulse rounded-3xl bg-stone-200/80 w-full lg:max-w-3xl lg:mx-auto aspect-[4/3] sm:aspect-[16/9]" />
                   ) : homePhotos.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-6 text-center space-y-3">
                       <p className="text-sm text-stone-700">Aucune photo pour le moment. Ajoutez celles de vos événements : elles apparaîtront ici pour tous les visiteurs.</p>
