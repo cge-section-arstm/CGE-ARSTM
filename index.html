@@ -123,6 +123,24 @@
   .glass-card.reveal { transition: opacity 0.55s ease-out, transform 0.55s ease-out; transition-delay: var(--reveal-delay, 0ms); }
   .reveal.is-visible { opacity: 1; transform: none; }
 
+  /* Dessins maritimes de « Ce que fait la CGE » : petit mouvement au survol */
+  .art-spin { transform-origin: 100px 70px; transition: transform 1.4s cubic-bezier(0.22, 1, 0.36, 1); }
+  .glass-card:hover .art-spin { transform: rotate(90deg); }
+  .art-beam { opacity: 0.55; transition: opacity 0.6s ease; }
+  .glass-card:hover .art-beam { opacity: 1; }
+
+  /* « À l'affiche » : annonces imminentes (actualités, événements, formations) */
+  @keyframes upcIn { from { opacity: 0; transform: translateY(12px) scale(0.98); } to { opacity: 1; transform: none; } }
+  @keyframes upcPulse { 0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.55); } 70% { box-shadow: 0 0 0 9px rgba(234, 88, 12, 0); } 100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); } }
+  @keyframes upcBar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  @keyframes upcGlow { 0%, 100% { box-shadow: 0 10px 30px rgba(234, 88, 12, 0.16); } 50% { box-shadow: 0 14px 40px rgba(234, 88, 12, 0.36); } }
+  @keyframes upcShine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(320%) skewX(-18deg); } }
+  .upc-card { position: relative; overflow: hidden; border-radius: 1.5rem; background: linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(253, 228, 234, 0.85)); border: 1px solid rgba(234, 88, 12, 0.35); animation: upcGlow 3.2s ease-in-out infinite; }
+  .upc-card::after { content: ''; position: absolute; top: 0; bottom: 0; left: 0; width: 28%; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.65), transparent); animation: upcShine 6s ease-in-out infinite; pointer-events: none; }
+  .upc-slide { animation: upcIn 0.55s cubic-bezier(0.22, 1, 0.36, 1); }
+  .upc-dot { display: inline-block; width: 9px; height: 9px; border-radius: 9999px; background: #EA580C; animation: upcPulse 1.8s infinite; }
+  .upc-bar { transform-origin: left; animation: upcBar 5.5s linear forwards; }
+
   /* Vague très lente sous le titre de l'accueil */
   .wave-layer { position: absolute; left: 0; right: 0; bottom: 0; height: 64px; overflow: hidden; pointer-events: none; z-index: 0; }
   .wave-layer svg { position: absolute; left: 0; bottom: 0; width: 200%; height: 100%; }
@@ -175,7 +193,7 @@
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
     .hover-scale:hover, .glass-card.hover-scale:hover { transform: none; }
-    .tab-fade, .wave-a, .wave-b, .compass-spin, .ship-bob, .route-flow, .route-pulse { animation: none; }
+    .tab-fade, .wave-a, .wave-b, .compass-spin, .ship-bob, .route-flow, .route-pulse, .upc-card, .upc-card::after, .upc-slide, .upc-dot, .upc-bar { animation: none; }
     #splash img { animation: none; }
     #splash .splash-bar span { animation: none; width: 100%; opacity: 0.5; }
     .fixed.inset-0.z-50, .fixed.inset-0.z-50 > .glass-card, .fixed.inset-0.z-50 > [role="dialog"], .fixed.inset-0.z-50 > [role="alertdialog"] { animation: none; }
@@ -741,91 +759,155 @@ const CountdownPill = ({ date }) => {
   );
 };
 
-// Petits dessins minimalistes (une scène par mission) : traits volontairement inachevés, comme un croquis
-const ART_INK = '#57534e', ART_ACC = '#EA580C', ART_SOFT = '#FDBA74';
+// « À l'affiche » : annonces imminentes (actualités, événements, formations) en carrousel animé sur l'accueil
+const UPCOMING_WINDOW_MS = 60 * 86400000; // on annonce ce qui arrive dans les 60 prochains jours
+const UPCOMING_SLIDE_MS = 5500;
+const collectUpcoming = (newsList, eventList, now) => {
+  const startToday = new Date(now); startToday.setHours(0, 0, 0, 0);
+  const out = [];
+  const add = (src, it) => {
+    if (!it || !it.title || !it.date) return;
+    const p = parseFrenchDate(splitCountdown(it.date).text);
+    if (!p) return;
+    const t = p.date.getTime();
+    if (t < startToday.getTime() || t - now > UPCOMING_WINDOW_MS) return;
+    if (p.hasTime && t < now) return; // l'heure est déjà passée aujourd'hui
+    const kind = /formation|atelier|s[eé]minaire|webinaire/i.test(it.title) ? 'Formation' : src === 'event' ? 'Événement' : 'Actualité';
+    out.push({ key: `${src}-${it.id}`, src, kind, title: it.title, date: splitCountdown(it.date).text, rawDate: it.date, t });
+  };
+  (newsList || []).forEach(n => add('news', n));
+  (eventList || []).forEach(e => add('event', e));
+  return out.sort((a, b) => a.t - b.t).slice(0, 5);
+};
+const UPC_KIND_STYLE = { 'Formation': 'bg-rose-500/15 text-rose-700 border-rose-500/30', 'Événement': 'bg-orange-500/15 text-orange-700 border-orange-500/30', 'Actualité': 'bg-stone-500/10 text-stone-700 border-stone-400/30' };
+const UpcomingSpotlight = ({ items, onOpen, className = '' }) => {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [now, setNow] = useState(Date.now());
+  const n = items.length;
+  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 30000); return () => clearInterval(id); }, []);
+  useEffect(() => {
+    if (n < 2 || paused || prefersReducedMotion()) return;
+    const id = setTimeout(() => setIdx(i => (i + 1) % n), UPCOMING_SLIDE_MS);
+    return () => clearTimeout(id);
+  }, [idx, n, paused]);
+  if (!n) return null;
+  const cur = Math.min(idx, n - 1);
+  const it = items[cur];
+  const info = countdownInfo(it.rawDate, now);
+  const soon = it.t - now < 3 * 86400000;
+  return (
+    <section aria-label="À l'affiche : prochaines échéances" aria-live="polite" className={`upc-card p-4 sm:p-5 pointer-events-auto ${className}`}
+      onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onTouchStart={() => setPaused(true)} onTouchEnd={() => setPaused(false)}>
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <span className="inline-flex items-center gap-2 text-[11px] font-extrabold uppercase tracking-widest text-orange-700"><span className="upc-dot" aria-hidden="true" /> {soon ? 'Bientôt' : 'À l\'affiche'}</span>
+        {n > 1 && <span className="text-[10px] font-bold text-stone-500">{cur + 1} / {n}</span>}
+      </div>
+      <button key={it.key} type="button" onClick={() => onOpen(it)} className="upc-slide block w-full text-left space-y-2">
+        <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide px-2.5 py-0.5 rounded-full border ${UPC_KIND_STYLE[it.kind]}`}>{it.kind}</span>
+        <span className="block font-serif text-base sm:text-lg font-bold text-stone-900 leading-snug line-clamp-2">{it.title}</span>
+        <span className="flex flex-wrap items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600"><Calendar className="w-3.5 h-3.5 text-orange-600" /> {it.date}</span>
+          {info && <span className={`inline-flex items-center gap-1.5 text-white px-3 py-1 rounded-full text-[11px] font-bold ${soon ? 'bg-rose-600' : 'bg-orange-600'}`}><Clock className="w-3.5 h-3.5" /> {info.text}</span>}
+        </span>
+      </button>
+      {n > 1 && (
+        <div className="mt-4 flex items-center gap-3">
+          <div className="flex gap-1.5">
+            {items.map((x, i) => <button key={x.key} type="button" aria-label={`Annonce ${i + 1}`} onClick={() => setIdx(i)} className={`h-2 rounded-full transition-all duration-300 ${i === cur ? 'w-5 bg-orange-600' : 'w-2 bg-orange-300'}`} />)}
+          </div>
+          <div className="flex-1 h-1 rounded-full bg-orange-500/15 overflow-hidden"><span key={`${cur}-${paused ? 'p' : 'r'}`} className="upc-bar block h-full bg-orange-500/70" style={{ animationPlayState: paused ? 'paused' : 'running' }} /></div>
+        </div>
+      )}
+    </section>
+  );
+};
+
+// Petits dessins minimalistes (une scène par mission) : univers maritime, traits volontairement inachevés, comme un croquis
+const ART_INK = '#57534e', ART_ACC = '#EA580C', ART_SOFT = '#FDBA74', ART_BG = '#FDE4EA';
 const ArtFrame = ({ children }) => (
   <svg viewBox="0 0 200 140" className="h-full w-auto" aria-hidden="true" focusable="false">
-    <circle cx="100" cy="72" r="60" fill="#FDE4EA" />
+    <circle cx="100" cy="72" r="60" fill={ART_BG} />
     <g stroke={ART_INK} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" fill="none">{children}</g>
   </svg>
 );
-// Bonhomme : tête ronde ouverte, corps avec des contours qui ne se ferment pas, membres détachés
-const ArtFig = ({ x, y, s = 1, children }) => (
-  <g transform={`translate(${x} ${y}) scale(${0.88 * s})`}>
-    <path d="M-11 25Q0 19 11 25L10 53H-10Z" fill={ART_SOFT} stroke="none" transform="translate(4 3)" />
-    <path d="M9.8 -6.9A12 12 0 1 1 2.1 -11.8" />
-    <path d="M-13 23Q-4 17 6 18.5" />
-    <path d="M-13 23C-15 35-14 46-12 56M13 23C15 32 14 38 13 42M12 49L11 54" />
-    <path d="M-12 56H-1M5 56H11" />
-    <path d="M-6 63L-8 94M6 63L8 90M-8 94H-15M8 90H15" />
-    {children}
-  </g>
-);
-// Représentation : un bonhomme avec un haut-parleur
+const artPt = (cx, cy, r, deg) => { const t = deg * Math.PI / 180; return `${(cx + r * Math.cos(t)).toFixed(1)} ${(cy + r * Math.sin(t)).toFixed(1)}`; };
+
+// Représentation : la barre du navire (celle qui porte la voix et tient le cap)
 const ArtRepresentation = () => (
   <ArtFrame>
-    <ArtFig x={78} y={40}>
-      <path d="M-17 26L-26 48M17 26L38 14" />
-      <rect x="34" y="9" width="7" height="12" rx="2" fill={ART_SOFT} />
-      <path d="M40 8V22L66 34V-4Z" fill={ART_ACC} />
-      <path d="M76 2q10 16 0 32M88 -8q16 26 0 52" stroke={ART_ACC} />
-    </ArtFig>
+    <g className="art-spin">
+      <circle cx="104" cy="73" r="28" fill={ART_SOFT} stroke="none" />
+      {[0, 45, 90, 135, 180, 225, 270, 315].map(a => <path key={a} d={`M${artPt(100, 70, 9, a)}L${artPt(100, 70, 45, a)}`} />)}
+      {[0, 45, 90, 135, 180, 225, 270, 315].map(a => { const [x, y] = artPt(100, 70, 48, a).split(' '); return <circle key={`k${a}`} cx={x} cy={y} r="4" fill={ART_ACC} stroke="none" />; })}
+      <circle cx="100" cy="70" r="28" />
+      <circle cx="100" cy="70" r="9" fill={ART_ACC} />
+    </g>
   </ArtFrame>
 );
-// Événements : fanions, bras en l'air, confettis
+
+// Événements : un grand pavillon hissé en fête
 const ArtEvenements = () => (
   <ArtFrame>
-    <path d="M20 8Q100 28 180 8" />
-    <g stroke="none">
-      <path d="M46 14L58 14L52 27Z" fill={ART_ACC} />
-      <path d="M78 17L90 17L84 30Z" fill={ART_SOFT} />
-      <path d="M110 17L122 17L116 30Z" fill={ART_ACC} />
-      <path d="M142 14L154 14L148 27Z" fill={ART_SOFT} />
-      <circle cx="42" cy="74" r="3.5" fill={ART_ACC} />
-      <circle cx="160" cy="66" r="3" fill={ART_SOFT} />
-      <rect x="28" y="98" width="7" height="7" rx="1.5" fill={ART_SOFT} transform="rotate(20 31 101)" />
-      <rect x="166" y="96" width="7" height="7" rx="1.5" fill={ART_ACC} transform="rotate(-18 169 99)" />
-    </g>
-    <ArtFig x={100} y={52}><path d="M-17 26L-36 8M17 26L36 8" /></ArtFig>
+    <path d="M78 26V116" />
+    <path d="M56 116H112" />
+    <path d="M80 32C100 24 118 42 144 34V64C118 72 100 54 80 62Z" fill={ART_ACC} />
+    <path d="M80 74L112 82L80 92Z" fill={ART_SOFT} />
+    <path d="M150 54L153 62L161 65L153 68L150 76L147 68L139 65L147 62Z" fill={ART_SOFT} stroke="none" />
+    <circle cx="160" cy="44" r="3" fill={ART_ACC} stroke="none" />
+    <circle cx="136" cy="90" r="3" fill={ART_ACC} stroke="none" />
   </ArtFrame>
 );
-// Carrière : une mallette et une flèche qui monte
+
+// Carrière : l'ancre qui tient bon, et la flèche qui monte
 const ArtCarriere = () => (
   <ArtFrame>
-    <path d="M130 108L152 86L164 96L188 64" stroke={ART_ACC} strokeWidth="4.5" />
-    <path d="M176 64H188V76" stroke={ART_ACC} strokeWidth="4.5" />
-    <ArtFig x={76} y={38}>
-      <path d="M-17 26L-28 46M17 26L34 46" />
-      <path d="M31 46v-6h16v6" />
-      <rect x="22" y="46" width="34" height="24" rx="4" fill={ART_ACC} />
-    </ArtFig>
+    <path d="M52 118C64 112 76 124 88 118S112 112 124 118" stroke={ART_SOFT} strokeWidth="3" />
+    <circle cx="94" cy="32" r="7" />
+    <path d="M94 39V102" />
+    <path d="M82 50H106" />
+    <path d="M60 80C64 104 84 112 94 102C104 112 124 104 128 80" />
+    <path d="M60 80L52 90M60 80L70 88M128 80L120 88M128 80L136 90" />
+    <path d="M148 84V46M138 56L148 44L158 56" stroke={ART_ACC} strokeWidth="5" />
   </ArtFrame>
 );
-// Mentorat : un grand qui guide un plus petit, avec une idée
+
+// Mentorat : le phare qui guide les nouveaux, faisceau allumé
 const ArtMentorat = () => (
   <ArtFrame>
-    <ArtFig x={66} y={36}><path d="M-17 26L-26 46M17 26L42 12" /></ArtFig>
-    <ArtFig x={130} y={54} s={0.8}><path d="M-17 26L-26 44M17 26L26 8" /></ArtFig>
-    <circle cx="130" cy="26" r="10" fill={ART_SOFT} />
-    <path d="M125 39h10M127 44h6" />
-    <path d="M130 6V10M146 14l-3 3M114 14l3 3M152 28h-4M108 28h4" stroke={ART_ACC} />
+    <path className="art-beam" d="M92 48L50 34V62Z" fill={ART_SOFT} stroke="none" />
+    <path className="art-beam" d="M108 48L150 34V62Z" fill={ART_SOFT} stroke="none" />
+    <path d="M88 112L92 56H108L112 112Z" fill="#fff" />
+    <path d="M90 76H110.5M89 94H111" stroke={ART_ACC} strokeWidth="6" />
+    <path d="M92 56H108L110 44H90Z" fill={ART_SOFT} />
+    <rect x="94" y="44" width="12" height="12" rx="2" fill={ART_ACC} stroke="none" />
+    <path d="M90 44L100 32L110 44" />
+    <path d="M70 112H130" />
+    <path d="M76 112C82 104 90 104 94 112M106 112C112 104 120 104 126 112" />
   </ArtFrame>
 );
-// Entraide : un ancien tend la main à un plus jeune pour le faire monter sur la marche
+
+// Entraide : la bouée de sauvetage, on ne laisse personne tomber à l'eau
+const lifebuoySeg = (a) => `M${artPt(100, 70, 14, a - 16)}L${artPt(100, 70, 34, a - 16)}A34 34 0 0 1 ${artPt(100, 70, 34, a + 16)}L${artPt(100, 70, 14, a + 16)}A14 14 0 0 0 ${artPt(100, 70, 14, a - 16)}Z`;
 const ArtEntraide = () => (
   <ArtFrame>
-    <path d="M22 122H100V108H178V128H22Z" fill={ART_SOFT} stroke="none" />
-    <path d="M22 122H100V108H178" />
-    <ArtFig x={130} y={25}><path d="M-17 26L-36 44M17 26L26 46" /></ArtFig>
-    <ArtFig x={66} y={47.6} s={0.9}><path d="M17 26L40 21M-17 26L-26 44" /></ArtFig>
+    <circle cx="100" cy="70" r="41" strokeWidth="2" strokeDasharray="1 8" />
+    <circle cx="100" cy="70" r="34" fill={ART_SOFT} />
+    {[45, 135, 225, 315].map(a => <path key={a} d={lifebuoySeg(a)} fill={ART_ACC} stroke="none" />)}
+    <circle cx="100" cy="70" r="34" />
+    <circle cx="100" cy="70" r="14" fill={ART_BG} />
   </ArtFrame>
 );
-// Rayonnement : une étoile qui brille
+
+// Rayonnement : la rose des vents, l'ARSTM rayonne dans toute la sous-région
 const ArtRayonnement = () => (
   <ArtFrame>
-    <path d="M100 11L103.8 20.7L114.3 21.6L106.2 28L108.8 38.4L100 32.5L91.2 38.4L93.8 28L85.7 21.6L96.2 20.7Z" fill={ART_ACC} stroke="none" />
-    <path d="M100 0V5M124 8L121 12M76 8L79 12M132 28H127M68 28H73" stroke={ART_ACC} />
-    <ArtFig x={100} y={52}><path d="M-17 26L-30 6M17 26L30 6" /></ArtFig>
+    {[15, 45, 75, 105, 135, 165, 195, 225, 255, 285, 315, 345].map(a => <path key={a} d={`M${artPt(100, 70, 49, a)}L${artPt(100, 70, 55, a)}`} stroke={ART_ACC} strokeWidth="3" />)}
+    <path className="art-spin" d="M100 26L108 62L144 70L108 78L100 114L92 78L56 70L92 62Z" transform="translate(100 70) rotate(45) scale(0.62) translate(-100 -70)" fill={ART_SOFT} />
+    <path d="M100 26L108 62L144 70L108 78L100 114L92 78L56 70L92 62Z" fill="#fff" />
+    <path d="M100 26L108 62L100 70L92 62Z" fill={ART_ACC} stroke="none" />
+    <path d="M100 114L108 78L100 70L92 78Z" fill={ART_ACC} stroke="none" opacity="0.55" />
+    <circle cx="100" cy="70" r="4" fill={ART_INK} stroke="none" />
   </ArtFrame>
 );
 
@@ -1699,6 +1781,12 @@ function App() {
   const isMembersNews = (n) => n.visibility === 'membres';
   const publicNews = news.filter(n => !isMembersNews(n));
   const membersNews = news.filter(isMembersNews);
+  const upcomingItems = collectUpcoming(isUserAuthenticated ? news : publicNews, events, Date.now());
+  const openUpcoming = (it) => {
+    if (it.src === 'event') { setActiveTab('activites'); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const el = document.getElementById('actualites-accueil');
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   // ---------- Données réservées (chargées via le serveur après connexion) ----------
   const loadPrivateData = async () => {
@@ -3244,9 +3332,16 @@ function App() {
                   <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/80 to-white/20" />
                 </>
               ) : (
-                <div className="hidden md:block absolute right-6 bottom-4 w-[46%] max-w-[520px] opacity-90 pointer-events-none">
-                  <HeroShip />
-                </div>
+                upcomingItems.length > 0 ? (
+                  <div className="hidden md:flex absolute right-6 top-6 bottom-4 w-[44%] max-w-[480px] flex-col justify-between gap-4 pointer-events-none">
+                    <UpcomingSpotlight items={upcomingItems} onOpen={openUpcoming} />
+                    <div className="w-[38%] self-end opacity-90"><HeroShip /></div>
+                  </div>
+                ) : (
+                  <div className="hidden md:block absolute right-6 bottom-4 w-[46%] max-w-[520px] opacity-90 pointer-events-none">
+                    <HeroShip />
+                  </div>
+                )
               )}
               <div className="relative z-10 max-w-2xl md:max-w-[48%] space-y-6">
                 <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-orange-500/15 text-orange-700 border border-orange-500/30 text-xs font-semibold tracking-wide">
@@ -3268,8 +3363,9 @@ function App() {
                     </button>
                   </div>
                 )}
+                {upcomingItems.length > 0 && <UpcomingSpotlight items={upcomingItems} onOpen={openUpcoming} className="md:hidden" />}
                 {!HERO_PHOTO && (
-                  <div className="md:hidden pt-2 -mx-2 pointer-events-none">
+                  <div className={upcomingItems.length > 0 ? 'md:hidden pt-1 mx-auto w-[55%] max-w-[210px] pointer-events-none' : 'md:hidden pt-2 -mx-2 pointer-events-none'}>
                     <HeroShip />
                   </div>
                 )}
@@ -3462,7 +3558,7 @@ function App() {
             </section>
 
             {/* NEWS SECTION */}
-            <div className="space-y-6">
+            <div id="actualites-accueil" className="space-y-6 scroll-mt-24">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h3 className="font-serif text-2xl font-bold text-stone-900">Dernières Actualités</h3>
                 {isAdminLoggedIn && (
