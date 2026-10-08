@@ -319,6 +319,64 @@ const PhotoTile = ({ item, onOpen, className = '', big = false }) => (
   </button>
 );
 
+
+// ---------- Albums de l'accueil : défilement automatique, un album à la fois ----------
+const fmtAlbumDate = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); };
+const buildAlbums = (albumRecords, gallery) => {
+  const catName = (g) => g.category || 'Divers';
+  const names = Array.from(new Set([...albumRecords.map(catName), ...gallery.map(catName)]));
+  return names.map(name => {
+    const rec = albumRecords.find(a => catName(a) === name) || null;
+    const photos = gallery.filter(g => catName(g) === name && g.image).reverse();
+    const dateText = (rec && rec.date) || ((photos.find(p => p.date && String(p.date).trim()) || {}).date) || fmtAlbumDate((rec && rec.created_at) || (photos[photos.length - 1] && photos[photos.length - 1].created_at)) || '';
+    const pd = parseFrenchDate(dateText);
+    const ids = [rec ? rec.id : 0, ...photos.map(p => p.id)].map(Number).filter(Number.isFinite);
+    return { name, rec, photos, dateText, t: pd ? pd.date.getTime() : 0, lastId: Math.max(0, ...ids), cover: (rec && rec.thumb) || ((photos.find(p => p.thumb) || {}).thumb) || '' };
+  }).sort((a, b) => (b.t - a.t) || (b.lastId - a.lastId));
+};
+const HomeAlbums = ({ albums, onOpen, onAll }) => {
+  const [idx, setIdx] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const n = albums.length;
+  const reduce = typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  useEffect(() => { if (idx >= n) setIdx(0); }, [n, idx]);
+  useEffect(() => {
+    if (n < 2 || paused || reduce) return;
+    const id = setInterval(() => setIdx(i => (i + 1) % n), 4500);
+    return () => clearInterval(id);
+  }, [n, paused, reduce]);
+  if (!n) return null;
+  const go = (d) => setIdx(i => (i + d + n) % n);
+  const plural = (k, w) => `${k} ${w}${k > 1 ? 's' : ''}`;
+  return (
+    <div onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)} onFocus={() => setPaused(true)} onBlur={() => setPaused(false)} onTouchStart={() => setPaused(true)} className="space-y-4" role="region" aria-roledescription="carrousel" aria-label="Albums photos">
+      <div className="relative">
+        <div className="relative overflow-hidden rounded-3xl sm:rounded-[2rem] bg-stone-200 aspect-[4/3] sm:aspect-[16/9]">
+          {albums.map((al, i) => (
+            <button key={al.name} type="button" onClick={() => onOpen(al.name)} aria-hidden={i !== idx} tabIndex={i === idx ? 0 : -1} aria-label={`Ouvrir l'album ${al.name}`} className="absolute inset-0 block w-full h-full text-left transition-opacity duration-700" style={{ opacity: i === idx ? 1 : 0, pointerEvents: i === idx ? 'auto' : 'none' }}>
+              {al.cover && <img src={al.cover} alt="" loading={i === 0 ? 'eager' : 'lazy'} className="w-full h-full object-cover" />}
+            </button>
+          ))}
+          {n > 1 && <>
+            <button type="button" onClick={() => go(-1)} aria-label="Album précédent" className="absolute left-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/90 text-stone-800 shadow flex items-center justify-center hover:bg-orange-600 hover:text-white"><ChevronDown className="w-5 h-5 rotate-90" /></button>
+            <button type="button" onClick={() => go(1)} aria-label="Album suivant" className="absolute right-3 top-1/2 -translate-y-1/2 z-10 w-10 h-10 rounded-full bg-white/90 text-stone-800 shadow flex items-center justify-center hover:bg-orange-600 hover:text-white"><ChevronDown className="w-5 h-5 -rotate-90" /></button>
+          </>}
+        </div>
+      </div>
+      <div className="text-center space-y-1" aria-live={paused ? 'polite' : 'off'}>
+        <h4 className="font-serif text-xl sm:text-3xl font-bold text-stone-900 leading-tight">{albums[idx].name}</h4>
+        <p className="text-sm sm:text-base font-semibold text-orange-600">{albums[idx].dateText || '\u00A0'}</p>
+        <p className="text-xs text-stone-500">{[albums[idx].photos.filter(p => !p.isVideo).length ? plural(albums[idx].photos.filter(p => !p.isVideo).length, 'photo') : '', albums[idx].photos.some(p => p.isVideo) ? plural(albums[idx].photos.filter(p => p.isVideo).length, 'vidéo') : ''].filter(Boolean).join(' · ')}</p>
+      </div>
+      {n > 1 && (
+        <div className="flex justify-center gap-2" role="tablist" aria-label="Choisir un album">
+          {albums.map((al, i) => <button key={al.name} type="button" role="tab" aria-selected={i === idx} aria-label={`Album ${i + 1} : ${al.name}`} onClick={() => setIdx(i)} className={`h-2.5 rounded-full transition-all ${i === idx ? 'w-7 bg-orange-600' : 'w-2.5 bg-stone-300 hover:bg-orange-300'}`} />)}
+        </div>
+      )}
+    </div>
+  );
+};
+
 // ---------- Photos : réduction automatique avant envoi ----------
 // Une photo de téléphone (3 à 8 Mo) est redimensionnée à 900 px max et compressée en JPEG (~80-150 Ko).
 // Attention : utiliser window.Image (le constructeur du navigateur) et jamais un composant nommé « Image ».
@@ -3411,32 +3469,25 @@ function App() {
               </div>
             </section>
 
-            {/* EN IMAGES : dernières photos de la médiathèque */}
+            {/* EN IMAGES : albums de la médiathèque, affichés tour à tour */}
             {(() => {
-              const homePhotos = gallery.filter(g => g && g.image && !g.placeholder && g.onHome).slice(-6).reverse();
-              if (homePhotos.length === 0 && !canEdit('gallery')) return null;
+              const homeAlbums = buildAlbums(albumRecords, gallery).filter(a => a.cover && a.photos.some(p => !p.placeholder && p.onHome));
+              if (homeAlbums.length === 0 && !canEdit('gallery')) return null;
               return (
-                <section aria-label="Photos des événements" className="space-y-6">
+                <section aria-label="Albums photos" className="space-y-6">
                   <div className="text-center space-y-2">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">En images</p>
                     <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">La vie de la CGE en photos</h3>
                   </div>
-                  {homePhotos.length === 0 ? (
+                  {homeAlbums.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-6 text-center space-y-3">
-                      <p className="text-sm text-stone-700">Aucune photo pour le moment. Ajoutez celles de vos événements : elles apparaîtront ici pour tous les visiteurs.</p>
-                      <button type="button" onClick={() => openAddResource('gallery')} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"><Plus className="w-4 h-4" /> Ajouter une photo</button>
+                      <p className="text-sm text-stone-700">Aucun album sur l'accueil pour le moment. Créez un album : il défilera ici pour tous les visiteurs.</p>
+                      <button type="button" onClick={() => openAddResource('album')} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"><Plus className="w-4 h-4" /> Créer un album</button>
                     </div>
                   ) : (
-                    <div className="space-y-3 sm:space-y-4">
-                      <PhotoTile item={homePhotos[0]} onOpen={setLightbox} big className="w-full aspect-[4/3] sm:aspect-[16/9]" />
-                      {homePhotos.length > 1 && (
-                        <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory pb-2 -mx-1 px-1 md:grid md:grid-cols-3 md:gap-4 md:overflow-visible md:pb-0">
-                          {homePhotos.slice(1).map(item => <PhotoTile key={item.id} item={item} onOpen={setLightbox} className="shrink-0 w-[72%] sm:w-[45%] md:w-auto snap-start aspect-[4/3]" />)}
-                        </div>
-                      )}
-                    </div>
+                    <HomeAlbums albums={homeAlbums} onOpen={(name) => { setAlbumOpen(name); setActiveTab('mediatheque'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} />
                   )}
-                  {homePhotos.length > 0 && (
+                  {homeAlbums.length > 0 && (
                     <div className="text-center">
                       <button type="button" onClick={() => { setAlbumOpen(null); setActiveTab('mediatheque'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="relative z-10 inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:underline px-4 py-2 rounded-full bg-white/85 backdrop-blur shadow-sm">Voir tous les albums <ChevronDown className="w-4 h-4 -rotate-90" /></button>
                     </div>
@@ -4359,15 +4410,7 @@ function App() {
         {/* MEDIATHEQUE VIEW : albums */}
         {activeTab === 'mediatheque' && (() => {
           const catName = (g) => g.category || 'Divers';
-          const names = Array.from(new Set([...albumRecords.map(catName), ...gallery.map(catName)]));
-          const albums = names.map(name => {
-            const rec = albumRecords.find(a => catName(a) === name) || null;
-            const photos = gallery.filter(g => catName(g) === name && g.image).reverse();
-            const dateText = (rec && rec.date) || ((photos.find(p => p.date && String(p.date).trim()) || {}).date) || '';
-            const pd = parseFrenchDate(dateText);
-            const ids = [rec ? rec.id : 0, ...photos.map(p => p.id)].map(Number).filter(Number.isFinite);
-            return { name, rec, photos, dateText, t: pd ? pd.date.getTime() : 0, lastId: Math.max(0, ...ids), cover: (rec && rec.thumb) || ((photos.find(p => p.thumb) || {}).thumb) || '' };
-          }).sort((a, b) => (b.t - a.t) || (b.lastId - a.lastId));
+          const albums = buildAlbums(albumRecords, gallery);
           const open = albumOpen ? albums.find(a => a.name === albumOpen) : null;
           const plural = (n) => `${n} photo${n > 1 ? 's' : ''}`;
           const counts = (a) => { const v = a.photos.filter(p => p.isVideo).length; const n = a.photos.length - v; return [n ? plural(n) : '', v ? `${v} vidéo${v > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ') || '0 photo'; };
