@@ -321,14 +321,13 @@ const PhotoTile = ({ item, onOpen, className = '', big = false }) => (
 
 
 // ---------- Albums de l'accueil : défilement automatique, un album à la fois ----------
-const fmtAlbumDate = (v) => { if (!v) return ''; const d = new Date(v); return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' }); };
 const buildAlbums = (albumRecords, gallery) => {
   const catName = (g) => g.category || 'Divers';
   const names = Array.from(new Set([...albumRecords.map(catName), ...gallery.map(catName)]));
   return names.map(name => {
     const rec = albumRecords.find(a => catName(a) === name) || null;
     const photos = gallery.filter(g => catName(g) === name && g.image).reverse();
-    const dateText = (rec && rec.date) || ((photos.find(p => p.date && String(p.date).trim()) || {}).date) || fmtAlbumDate((rec && rec.created_at) || (photos[photos.length - 1] && photos[photos.length - 1].created_at)) || '';
+    const dateText = (rec && rec.date) || ((photos.find(p => p.date && String(p.date).trim()) || {}).date) || '';
     const pd = parseFrenchDate(dateText);
     const ids = [rec ? rec.id : 0, ...photos.map(p => p.id)].map(Number).filter(Number.isFinite);
     return { name, rec, photos, dateText, t: pd ? pd.date.getTime() : 0, lastId: Math.max(0, ...ids), cover: (rec && rec.thumb) || ((photos.find(p => p.thumb) || {}).thumb) || '' };
