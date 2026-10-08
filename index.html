@@ -114,6 +114,10 @@
   @keyframes tabFade { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
   .tab-fade { animation: tabFade 0.3s ease-out; }
 
+  /* Albums (grille en colonnes) : Safari mobile perdait des cartes (invisibles mais cliquables) avec backdrop-filter / transform dans les colonnes */
+  .album-card { -webkit-backdrop-filter: none; backdrop-filter: none; background: rgba(255, 255, 255, 0.78); -webkit-transform: translateZ(0); transform: translateZ(0); opacity: 1 !important; }
+  .album-card.reveal, .album-card.reveal.is-visible { opacity: 1 !important; transform: translateZ(0); }
+
   /* Apparition douce des cartes au défilement */
   .reveal { opacity: 0; transform: translateY(18px); }
   .glass-card.reveal { transition: opacity 0.55s ease-out, transform 0.55s ease-out; transition-delay: var(--reveal-delay, 0ms); }
@@ -279,14 +283,14 @@ const SITE_CREATORS = [
 ];
 
 // ---------- Médiathèque : image en fondu + vignette cliquable ----------
-const FadeImg = ({ src, alt, className = '' }) => {
+const FadeImg = ({ src, alt, className = '', eager = false }) => {
   const [ok, setOk] = useState(false);
-  return <img src={src} alt={alt} loading="lazy" decoding="async" onLoad={() => setOk(true)} onError={() => setOk(true)}
+  return <img src={src} alt={alt} loading={eager ? 'eager' : 'lazy'} decoding="async" onLoad={() => setOk(true)} onError={() => setOk(true)}
     ref={el => { if (el && !ok && el.complete && el.naturalWidth) setOk(true); }}
     className={className} style={{ opacity: ok ? 1 : 0, transition: 'opacity .7s ease, transform .7s ease' }} />;
 };
-const MediaThumb = ({ item, className = '', alt }) => item.thumb
-  ? <FadeImg src={item.thumb} alt={alt ?? item.title} className={className} />
+const MediaThumb = ({ item, className = '', alt, eager = false }) => item.thumb
+  ? <FadeImg src={item.thumb} alt={alt ?? item.title} className={className} eager={eager} />
   : <span className="flex w-full h-full min-h-[8rem] aspect-video items-center justify-center bg-gradient-to-br from-stone-800 to-stone-600 px-4 text-center font-serif text-sm text-white/70">{item.title}</span>;
 const PlayBadge = () => (
   <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center pointer-events-none"><span className="w-14 h-14 rounded-full bg-black/55 backdrop-blur flex items-center justify-center"><svg viewBox="0 0 24 24" className="w-6 h-6 fill-white ml-0.5"><path d="M8 5v14l11-7z" /></svg></span></span>
@@ -1671,12 +1675,15 @@ function App() {
         if (el.dataset.revealed) return;
         el.dataset.revealed = '1';
         if (el.closest('.fixed, [role="dialog"], [role="alertdialog"]')) return;
+        if (el.hasAttribute('data-no-reveal') || el.closest('.columns-2, .columns-3')) return; // grilles en colonnes : l'observateur est peu fiable sur mobile
         if (el.parentElement && el.parentElement.closest('.glass-card')) return;
         if (el.getBoundingClientRect().top < window.innerHeight * 0.92) return; // déjà à l'écran : pas d'effet
         const idx = Array.prototype.indexOf.call(el.parentElement.children, el);
         el.style.setProperty('--reveal-delay', Math.min(idx, 4) * 80 + 'ms');
         el.classList.add('reveal');
         io.observe(el);
+        // Filet de sécurité : une carte ne reste jamais invisible si l'observateur ne se déclenche pas
+        timers.push(setTimeout(() => { if (el.classList.contains('reveal')) { el.classList.add('is-visible'); timers.push(setTimeout(() => { el.classList.remove('reveal', 'is-visible'); el.style.removeProperty('--reveal-delay'); }, 700)); } }, 2500));
       });
     };
     prepare();
@@ -2505,6 +2512,30 @@ function App() {
       setResourcePhotoStatus('');
       showToastMsg("Photo refusée : " + photoErrorMessage(file, err), 'error');
     }
+  };
+
+  // Case « Afficher cet album sur l'accueil » : s'applique à toutes les photos et vidéos de l'album
+  const [homeBusy, setHomeBusy] = useState(false);
+  const setAlbumHome = async (albumName, show) => {
+    if (!canEdit('gallery') || homeBusy) return;
+    setBulkOnHome(show);
+    const targets = galleryRaw.filter(r => { const n = normGallery(r); return n && !n.isAlbum && !n.placeholder && (n.category || 'Divers') === albumName && n.onHome !== show; });
+    if (!targets.length) return;
+    setHomeBusy(true);
+    let ok = 0;
+    for (const r of targets) {
+      const base = String(r.date || '').replace(HOME_HIDE_RE, '').trim();
+      const date = (base + (show ? '' : ' [hors accueil]')).trim();
+      try {
+        const row = await authRpc('cge_save', { p_table: 'gallery', p_id: r.id, p_data: { title: r.title, category: r.category, date, caption: r.caption || '', image: r.image }, p_details: `${r.title} — ${show ? 'affiché sur' : 'retiré de'} l'accueil` });
+        setGallery(prev => prev.map(i => (i.id === r.id ? row : i)));
+        ok++;
+      } catch (err) {
+        showToastMsg('Mise à jour impossible : ' + explainDbError(err), 'error');
+      }
+    }
+    setHomeBusy(false);
+    if (ok) { showToastMsg(show ? `Album affiché sur l'accueil (${ok} élément${ok > 1 ? 's' : ''}).` : `Album retiré de l'accueil (${ok} élément${ok > 1 ? 's' : ''}).`, 'success'); afterStaffWrite(); }
   };
 
   const handleBulkUpload = async (albumName, allFiles, onHome) => {
@@ -4243,6 +4274,11 @@ function App() {
           const open = albumOpen ? albums.find(a => a.name === albumOpen) : null;
           const plural = (n) => `${n} photo${n > 1 ? 's' : ''}`;
           const counts = (a) => { const v = a.photos.filter(p => p.isVideo).length; const n = a.photos.length - v; return [n ? plural(n) : '', v ? `${v} vidéo${v > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ') || '0 photo'; };
+          const homeTotal = open ? open.photos.filter(p => !p.placeholder).length : 0;
+          const homeShown = open ? open.photos.filter(p => !p.placeholder && p.onHome).length : 0;
+          const albumMixed = homeShown > 0 && homeShown < homeTotal;
+          const albumChecked = homeTotal === 0 ? bulkOnHome : homeShown === homeTotal;
+          const newUploadsOnHome = homeTotal === 0 ? bulkOnHome : homeShown > 0;
           const isNew = (a) => a.t > 0 && Date.now() - a.t < 45 * 864e5 && a.t < Date.now() + 864e5;
           return (
             <div className="space-y-8">
@@ -4296,10 +4332,11 @@ function App() {
                         <Plus className="w-4 h-4" /> {bulk ? `Envoi ${bulk.done}/${bulk.total}…` : 'Ajouter des photos'}
                       </label>
                       <input id="bulk-photos" type="file" accept="image/*" multiple disabled={!!bulk} className="sr-only"
-                        onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; handleBulkUpload(open.name, files, bulkOnHome); }} />
+                        onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; handleBulkUpload(open.name, files, newUploadsOnHome); }} />
                       <button type="button" onClick={() => { openAddResource('video'); setResourceForm(f => ({ ...f, category: open.name })); }} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-orange-500/40 text-orange-700 text-xs font-semibold"><Plus className="w-4 h-4" /> Ajouter une vidéo</button>
-                      <label className="inline-flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
-                        <input type="checkbox" checked={bulkOnHome} onChange={e => setBulkOnHome(e.target.checked)} className="w-4 h-4 accent-orange-600" /> Afficher aussi sur l'accueil
+                      <label className={`inline-flex items-center gap-2 text-xs text-stone-700 cursor-pointer ${homeBusy ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <input type="checkbox" disabled={homeBusy} checked={albumChecked} ref={el => { if (el) el.indeterminate = albumMixed; }} onChange={e => setAlbumHome(open.name, e.target.checked)} className="w-4 h-4 accent-orange-600" />
+                        <span>{homeBusy ? 'Mise à jour…' : "Afficher cet album sur l'accueil"}<span className="block text-[10px] text-stone-500">{albumMixed ? 'Certaines photos seulement : cocher les affiche toutes.' : 'Concerne toutes les photos et vidéos de l\'album.'}</span></span>
                       </label>
                       {open.rec && (
                         <span className="flex gap-2 ml-auto">
@@ -4312,11 +4349,11 @@ function App() {
                   {open.photos.length === 0 && <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Cet album est vide pour le moment.</div>}
                   <div className="columns-2 md:columns-3 gap-4">
                     {open.photos.map(item => (
-                      <div key={item.id} className="glass-card rounded-3xl overflow-hidden hover-scale group relative break-inside-avoid mb-4">
+                      <div key={item.id} data-no-reveal="1" className="glass-card album-card rounded-3xl overflow-hidden hover-scale group relative break-inside-avoid mb-4">
                         {canEdit('gallery') && <div className="absolute top-3 right-3 z-10 flex gap-2"><button onClick={() => openEditResource(item.isVideo ? 'video' : 'gallery', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'gallery',item})} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
                         {canEdit('gallery') && item.onHome && !item.placeholder && <span className="absolute top-3 left-3 z-10 text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-orange-600 text-white shadow">Sur l'accueil</span>}
                         <button type="button" onClick={() => setLightbox(item)} aria-label={`Agrandir : ${item.title}`} className="relative block w-full bg-stone-200 min-h-[8rem] overflow-hidden">
-                          <MediaThumb item={item} className="w-full h-auto block group-hover:scale-105" />{item.isVideo && <PlayBadge />}
+                          <MediaThumb item={item} eager className="w-full h-auto block group-hover:scale-105" />{item.isVideo && <PlayBadge />}
                         </button>
                         {(item.title !== open.name || item.caption || item.date) && (
                           <div className="p-4 sm:p-5">
