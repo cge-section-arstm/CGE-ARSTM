@@ -1373,6 +1373,7 @@ const AdhesionPage = ({ onBack, adhesionOpen, adhesionEnds, isStaff, onToggle, o
 
 function App() {
   const [activeTab, setActiveTab] = useState(() => { try { return window.location.hash === '#adhesion' ? 'adhesion' : 'accueil'; } catch (e) { return 'accueil'; } });
+  const [bureauFilter, setBureauFilter] = useState('all');
   useEffect(() => {
     const onHash = () => { if (window.location.hash === '#adhesion') { setActiveTab('adhesion'); window.scrollTo({ top: 0 }); } };
     window.addEventListener('hashchange', onHash);
@@ -3549,73 +3550,147 @@ function App() {
                 .sort((a, b) => (a.position === 'chef' ? 0 : 1) - (b.position === 'chef' ? 0 : 1) || String(a.name).localeCompare(String(b.name), 'fr'));
               const known = new Set(BUREAU_DEPARTMENTS.map(d => d.key));
               const others = members.filter(m => !known.has(m.department));
+              const deptLabel = (key) => (BUREAU_DEPARTMENTS.find(d => d.key === key) || {}).label || key;
+              const inDirection = ['presidence', 'vice_presidence', 'secretariat'];
+              const inFinances = ['tresorerie', 'commissariat'];
+
+              // Pôles du bureau (servent aux filtres et aux cartes)
+              const blocks = [
+                { id: 'direction', label: 'Direction', depts: inDirection },
+                { id: 'finances', label: 'Finances', depts: inFinances },
+                ...BUREAU_DEPARTMENTS
+                  .filter(d => !inDirection.includes(d.key) && !inFinances.includes(d.key))
+                  .map(d => ({ id: d.key, label: d.label, subtitle: d.subtitle, depts: [d.key] })),
+              ].map(b => ({ ...b, count: b.depts.reduce((n, k) => n + byDept(k).length, 0) })).filter(b => b.count > 0);
+
+              const filter = blocks.some(b => b.id === bureauFilter) ? bureauFilter : 'all';
+              const show = (id) => filter === 'all' || filter === id;
               const president = byDept('presidence');
-              const vice = byDept('vice_presidence');
-              const shownGroups = new Set();
+              const leaders = [...byDept('vice_presidence'), ...byDept('secretariat')];
+              const teamBlocks = blocks.filter(b => b.id !== 'direction' && show(b.id));
+              const cardW = 'w-full sm:w-[calc(50%-0.625rem)] lg:w-[calc(33.333%-0.84rem)]';
 
-              return (
-                <div className="space-y-12">
-                  {/* Présidence : grande carte */}
-                  {president.map(m => (
-                    <div key={m.id} className="glass-card rounded-3xl overflow-hidden flex flex-col sm:flex-row relative border border-orange-500/30 shadow-xl">
-                      {renderMemberAdminButtons(m)}
-                      <div className="sm:w-72 flex-shrink-0">{renderMemberPhoto(m, 'h-80 sm:h-full min-h-[18rem]')}</div>
-                      <div className="p-6 sm:p-8 flex flex-col justify-center space-y-3">
-                        <span className="text-[11px] font-extrabold uppercase tracking-widest text-white bg-orange-600 px-3 py-1 rounded-full self-start">{m.role}</span>
-                        <h3 className="font-serif text-3xl font-bold text-stone-900">{m.name}</h3>
-                        <p className="text-stone-500 text-sm">CGE section ARSTM — Bureau 2026-2027</p>
-                        {m.bio && <p className="text-stone-600 leading-relaxed">{m.bio}</p>}
-                      </div>
+              const renderMemberRow = (m) => (
+                <div key={m.id} className="flex items-center gap-3 p-2.5 rounded-2xl bg-white/55 border border-white/70">
+                  <div className="w-14 h-14 rounded-full overflow-hidden flex-shrink-0 ring-2 ring-white shadow-sm">
+                    {m.image
+                      ? <img src={m.image} alt={m.name} loading="lazy" decoding="async" className="w-full h-full object-cover object-top" />
+                      : <div className="w-full h-full bg-gradient-to-br from-orange-200/60 to-blush-200/60 flex items-center justify-center"><span className="font-serif text-lg font-bold text-orange-600/70">{memberInitials(m.name)}</span></div>}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <h5 className="font-serif text-base font-bold text-stone-900 leading-tight">{m.name}</h5>
+                      <span className={`text-[9px] font-extrabold uppercase tracking-wider px-2 py-0.5 rounded-full ${m.position === 'chef' ? 'bg-orange-600 text-white' : 'bg-stone-500/10 text-stone-600 border border-stone-400/30'}`}>{m.position === 'chef' ? 'Chef' : 'Adjoint(e)'}</span>
                     </div>
-                  ))}
-
-                  {/* Vice-Présidence : carte moyenne */}
-                  {vice.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-6">
-                      {vice.map(m => (
-                        <div key={m.id} className="glass-card rounded-3xl overflow-hidden flex flex-col sm:flex-row relative w-full max-w-2xl">
-                          {renderMemberAdminButtons(m)}
-                          <div className="sm:w-52 flex-shrink-0">{renderMemberPhoto(m, 'h-64 sm:h-full min-h-[14rem]')}</div>
-                          <div className="p-6 flex flex-col justify-center space-y-2">
-                            <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-700 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full self-start">{m.role}</span>
-                            <h3 className="font-serif text-2xl font-bold text-stone-900">{m.name}</h3>
-                            {m.bio && <p className="text-stone-600 text-sm leading-relaxed">{m.bio}</p>}
-                          </div>
-                        </div>
-                      ))}
+                    <p className="text-xs text-stone-600">{m.role}</p>
+                    {m.bio && <p className="text-[11px] text-stone-500 leading-snug mt-0.5">{m.bio}</p>}
+                  </div>
+                  {isAdminLoggedIn && (
+                    <div className="flex flex-col gap-1.5 flex-shrink-0">
+                      <button onClick={() => openEditMemberModal(m)} aria-label={`Modifier ${m.name}`} className="w-8 h-8 rounded-full bg-white/90 border border-white/70 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white transition duration-200"><Pencil className="w-3.5 h-3.5" /></button>
+                      <button onClick={() => setMemberToDelete(m)} aria-label={`Retirer ${m.name}`} className="w-8 h-8 rounded-full bg-white/90 border border-white/70 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white transition duration-200"><Trash className="w-3.5 h-3.5" /></button>
                     </div>
                   )}
+                </div>
+              );
 
-                  {/* Départements */}
-                  {BUREAU_DEPARTMENTS.filter(d => !['presidence', 'vice_presidence'].includes(d.key)).map(d => {
-                    const list = byDept(d.key);
+              const renderLeaderCard = (m) => (
+                <div key={m.id} className="glass-card rounded-3xl overflow-hidden flex relative w-full sm:w-[calc(50%-0.75rem)] max-w-xl">
+                  {renderMemberAdminButtons(m)}
+                  <div className="w-28 sm:w-36 flex-shrink-0">{renderMemberPhoto(m, 'h-full min-h-[10rem]')}</div>
+                  <div className="p-5 flex flex-col justify-center space-y-1.5 min-w-0">
+                    <span className="text-[10px] font-extrabold uppercase tracking-widest text-orange-700 bg-orange-500/10 border border-orange-500/20 px-3 py-1 rounded-full self-start">{m.role}</span>
+                    <h3 className="font-serif text-xl font-bold text-stone-900 leading-tight">{m.name}</h3>
+                    {m.bio && <p className="text-stone-600 text-sm leading-relaxed">{m.bio}</p>}
+                  </div>
+                </div>
+              );
+
+              const renderDeptCard = (b) => (
+                <section key={b.id} aria-label={b.label} className={`glass-card rounded-3xl p-5 space-y-3 ${filter === b.id ? 'w-full max-w-xl' : cardW}`}>
+                  <div className="flex items-start justify-between gap-2 border-b border-orange-500/20 pb-2">
+                    <div>
+                      <h4 className="font-serif text-lg font-bold text-stone-900">{b.label}</h4>
+                      {b.subtitle && <p className="text-[11px] text-stone-500">{b.subtitle}</p>}
+                    </div>
+                    <span className="text-[10px] font-bold text-orange-700 bg-orange-500/10 border border-orange-500/20 px-2 py-0.5 rounded-full">{b.count}</span>
+                  </div>
+                  {b.depts.map(k => {
+                    const list = byDept(k);
                     if (list.length === 0) return null;
-                    const showGroup = d.group && !shownGroups.has(d.group);
-                    if (d.group) shownGroups.add(d.group);
                     return (
-                      <section key={d.key} className="space-y-4">
-                        {showGroup && (
-                          <h3 className="font-serif text-2xl font-bold text-stone-900 border-b border-orange-500/20 pb-2">{d.group}</h3>
-                        )}
-                        <div className={d.group ? '' : 'border-b border-orange-500/20 pb-2'}>
-                          <h4 className={d.group ? 'text-xs font-extrabold uppercase tracking-widest text-orange-600' : 'font-serif text-2xl font-bold text-stone-900'}>{d.label}</h4>
-                          {d.subtitle && <p className="text-xs text-stone-500 mt-0.5">{d.subtitle}</p>}
-                        </div>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-                          {list.map(renderMemberCard)}
-                        </div>
-                      </section>
+                      <div key={k} className="space-y-2">
+                        {b.depts.length > 1 && <p className="text-[10px] font-extrabold uppercase tracking-widest text-orange-600">{deptLabel(k)}</p>}
+                        {list.map(renderMemberRow)}
+                      </div>
                     );
                   })}
+                </section>
+              );
 
-                  {others.length > 0 && (
-                    <section className="space-y-4">
-                      <h3 className="font-serif text-2xl font-bold text-stone-900 border-b border-orange-500/20 pb-2">Autres membres</h3>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-5">
-                        {others.map(renderMemberCard)}
+              // Niveaux de l'organigramme : Président → Vice-présidence & Secrétariat → pôles
+              const levels = [];
+              if (show('direction') && president.length > 0) {
+                levels.push(
+                  <div className="space-y-6">
+                    {president.map(m => (
+                      <div key={m.id} className="glass-card rounded-3xl overflow-hidden flex flex-col sm:flex-row relative border border-orange-500/30 shadow-xl max-w-4xl mx-auto">
+                        {renderMemberAdminButtons(m)}
+                        <div className="sm:w-64 flex-shrink-0">{renderMemberPhoto(m, 'h-72 sm:h-full min-h-[16rem]')}</div>
+                        <div className="p-6 sm:p-8 flex flex-col justify-center space-y-3">
+                          <span className="text-[11px] font-extrabold uppercase tracking-widest text-white bg-orange-600 px-3 py-1 rounded-full self-start">{m.role}</span>
+                          <h3 className="font-serif text-3xl font-bold text-stone-900">{m.name}</h3>
+                          <p className="text-stone-500 text-sm">CGE section ARSTM — Bureau 2026-2027</p>
+                          {m.bio && <p className="text-stone-600 leading-relaxed">{m.bio}</p>}
+                        </div>
                       </div>
-                    </section>
-                  )}
+                    ))}
+                  </div>
+                );
+              }
+              if (show('direction') && leaders.length > 0) {
+                levels.push(<div className="flex flex-wrap justify-center gap-6">{leaders.map(renderLeaderCard)}</div>);
+              }
+              if (teamBlocks.length > 0 || (filter === 'all' && others.length > 0)) {
+                levels.push(
+                  <div className="flex flex-wrap justify-center gap-5">
+                    {teamBlocks.map(renderDeptCard)}
+                    {filter === 'all' && others.length > 0 && (
+                      <section aria-label="Autres membres" className={`glass-card rounded-3xl p-5 space-y-3 ${cardW}`}>
+                        <h4 className="font-serif text-lg font-bold text-stone-900 border-b border-orange-500/20 pb-2">Autres membres</h4>
+                        <div className="space-y-2">{others.map(renderMemberRow)}</div>
+                      </section>
+                    )}
+                  </div>
+                );
+              }
+
+              return (
+                <div className="space-y-8">
+                  {/* Filtres par pôle */}
+                  <div role="group" aria-label="Filtrer le bureau par pôle" className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+                    {[{ id: 'all', label: 'Tous', count: members.length }, ...blocks].map(b => {
+                      const active = filter === b.id;
+                      return (
+                        <button key={b.id} type="button" onClick={() => setBureauFilter(b.id)} aria-pressed={active}
+                          className={`flex-shrink-0 whitespace-nowrap inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl text-xs font-semibold border transition duration-200 ${active ? 'bg-orange-600 text-white border-orange-600 shadow-lg shadow-orange-600/30' : 'bg-white/80 text-stone-700 border-stone-200 hover:text-orange-600'}`}>
+                          {b.label}
+                          <span className={`text-[10px] px-1.5 rounded-full ${active ? 'bg-white/25 text-white' : 'bg-stone-500/10 text-stone-500'}`}>{b.count}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div key={filter} className="tab-fade">
+                    {levels.map((lv, i) => (
+                      <div key={i}>
+                        {i > 0 && (filter === 'all'
+                          ? <div className="mx-auto w-px h-8 bg-gradient-to-b from-orange-500/50 to-orange-500/10" aria-hidden="true" />
+                          : <div className="h-6" />)}
+                        {lv}
+                      </div>
+                    ))}
+                  </div>
 
                   {members.length === 0 && (
                     <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Aucun membre du bureau pour le moment.</div>
