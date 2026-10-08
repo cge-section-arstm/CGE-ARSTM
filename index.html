@@ -130,9 +130,9 @@
   .glass-card:hover .art-beam { opacity: 1; }
 
   /* Fanion du bateau de l'accueil : annonce la prochaine échéance (actualité, événement, formation) */
-  @keyframes flagWave { from { transform: skewY(-3deg) scaleX(0.97); } to { transform: skewY(3deg) scaleX(1); } }
+  @keyframes flagWave { from { transform: skewY(-0.8deg); } to { transform: skewY(0.8deg); } }
   @keyframes flagIn { from { opacity: 0; } to { opacity: 1; } }
-  .flag-wave { transform-origin: 56px -20px; animation: flagWave 1.9s ease-in-out infinite alternate; }
+  .flag-wave { transform-origin: 56px -20px; animation: flagWave 4.5s ease-in-out infinite alternate; }
   .flag-txt { animation: flagIn 0.6s ease-out; }
   @keyframes flagScroll { 0%, 15% { transform: translateX(0); } 85%, 100% { transform: translateX(var(--flag-shift, 0px)); } }
   .flag-scroll { animation: flagScroll var(--flag-dur, 6s) ease-in-out infinite alternate; }
