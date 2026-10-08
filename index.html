@@ -20,7 +20,7 @@
 <meta property="og:image:alt" content="Logo du club CGE ARSTM" />
 <meta name="twitter:card" content="summary_large_image" />
 <!-- Sécurité : le navigateur ne charge des scripts que depuis ces CDN et ne parle qu'à Supabase. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src https://vpzxsksbzzbncqawzium.supabase.co; object-src 'none'; base-uri 'none'; form-action 'none'" />
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src https://vpzxsksbzzbncqawzium.supabase.co; frame-src https://www.youtube-nocookie.com https://player.vimeo.com https://www.facebook.com https://drive.google.com; media-src https:; object-src 'none'; base-uri 'none'; form-action 'none'" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800;900&display=swap" rel="stylesheet">
@@ -205,7 +205,7 @@
 </script>
 <noscript><p style="padding:2rem;font-family:sans-serif">Ce site a besoin de JavaScript pour fonctionner.</p></noscript>
 <script type="text/babel" data-presets="react">
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useMemo } = React;
 
 // Configuration Supabase
 // La clé « publishable » est publique par conception : la sécurité repose sur les règles du serveur
@@ -285,9 +285,15 @@ const FadeImg = ({ src, alt, className = '' }) => {
     ref={el => { if (el && !ok && el.complete && el.naturalWidth) setOk(true); }}
     className={className} style={{ opacity: ok ? 1 : 0, transition: 'opacity .7s ease, transform .7s ease' }} />;
 };
+const MediaThumb = ({ item, className = '', alt }) => item.thumb
+  ? <FadeImg src={item.thumb} alt={alt ?? item.title} className={className} />
+  : <span className="flex w-full h-full min-h-[8rem] aspect-video items-center justify-center bg-gradient-to-br from-stone-800 to-stone-600 px-4 text-center font-serif text-sm text-white/70">{item.title}</span>;
+const PlayBadge = () => (
+  <span aria-hidden="true" className="absolute inset-0 flex items-center justify-center pointer-events-none"><span className="w-14 h-14 rounded-full bg-black/55 backdrop-blur flex items-center justify-center"><svg viewBox="0 0 24 24" className="w-6 h-6 fill-white ml-0.5"><path d="M8 5v14l11-7z" /></svg></span></span>
+);
 const PhotoTile = ({ item, onOpen, className = '', big = false }) => (
   <button type="button" onClick={() => onOpen(item)} aria-label={`Agrandir : ${item.title}`} className={`hover-scale group relative block overflow-hidden bg-stone-200 text-left rounded-2xl sm:rounded-3xl ${className}`}>
-    <FadeImg src={item.image} alt={item.title} className="w-full h-full object-cover group-hover:scale-105" />
+    <MediaThumb item={item} className="w-full h-full object-cover group-hover:scale-105" />{item.isVideo && <PlayBadge />}
     <span className={`absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent text-white ${big ? 'p-5 sm:p-7' : 'p-3 sm:p-4'}`}>
       <span className="block text-[10px] font-bold uppercase tracking-wide text-orange-200">{item.category}{item.date ? ` · ${item.date}` : ''}</span>
       <span className={`block font-serif font-bold leading-tight ${big ? 'text-xl sm:text-3xl' : 'text-sm sm:text-base'}`}>{item.title}</span>
@@ -358,7 +364,7 @@ const MIN_PASSWORD_LENGTH = 8;
 const SESSION_STORAGE_KEY = 'cge_arstm_session';
 
 // Rubriques modifiables par le secrétariat (le serveur applique la même règle).
-const SECRETARIAT_EDITABLE = ['contacts', 'gallery', 'registre'];
+const SECRETARIAT_EDITABLE = ['contacts', 'gallery', 'album', 'video', 'registre'];
 // Onglets qui demandent d'être connecté
 const PRIVATE_TABS = ['emplois', 'alumni', 'registre', 'admin-space', 'historique', 'candidatures', 'messages', 'espace-membre'];
 // Ordre d'affichage du Bureau Exécutif
@@ -517,15 +523,36 @@ const RESOURCE_CONFIGS = {
     titleSingular: 'Média',
     fields: [
       { key: 'title', label: 'Titre', type: 'text', required: true },
-      { key: 'category', label: 'Catégorie (ex. Événements, Formation...)', type: 'text', required: true },
+      { key: 'category', label: 'Album (le thème de la photo, ex. Événements, Formation...)', type: 'text', required: true },
       { key: 'date', label: 'Date (ex. 12 Mars 2026) — facultatif', type: 'text', required: false },
       { key: 'caption', label: 'Légende — facultatif', type: 'text', required: false },
       { key: 'image', label: 'Photo', type: 'image', required: true },
+      { key: 'onHome', label: "Afficher aussi sur l'accueil", type: 'homeflag', required: false },
     ],
   },
 };
+RESOURCE_CONFIGS.album = {
+  table: 'gallery', noLoad: true, label: 'cet album', addLabel: 'Créer un album', titleSingular: 'Album',
+  fields: [
+    { key: 'title', label: "Nom de l'album (non modifiable ensuite)", type: 'text', required: true },
+    { key: 'date', label: 'Date de l\'album (ex. 9 Mai 2026)', type: 'text', required: true },
+    { key: 'caption', label: 'Description — facultatif', type: 'text', required: false },
+    { key: 'image', label: 'Photo de couverture', type: 'image', required: true },
+  ],
+};
+RESOURCE_CONFIGS.video = {
+  table: 'gallery', noLoad: true, label: 'cette vidéo', addLabel: 'Ajouter une vidéo', titleSingular: 'Vidéo',
+  fields: [
+    { key: 'title', label: 'Titre de la vidéo', type: 'text', required: true },
+    { key: 'category', label: 'Album (le thème, ex. Événements, Formation...)', type: 'text', required: true },
+    { key: 'date', label: 'Date (ex. 12 Mars 2026) — facultatif', type: 'text', required: false },
+    { key: 'caption', label: 'Légende — facultatif', type: 'text', required: false },
+    { key: 'image', label: 'Lien de la vidéo (YouTube, Facebook, Vimeo, Google Drive ou fichier .mp4)', type: 'url', required: true },
+    { key: 'onHome', label: "Afficher aussi sur l'accueil", type: 'homeflag', required: false },
+  ],
+};
 // Rubriques lisibles par les visiteurs (chargées directement au démarrage)
-const PUBLIC_TYPES = Object.keys(RESOURCE_CONFIGS).filter(t => !RESOURCE_CONFIGS[t].membersOnly);
+const PUBLIC_TYPES = Object.keys(RESOURCE_CONFIGS).filter(t => !RESOURCE_CONFIGS[t].membersOnly && !RESOURCE_CONFIGS[t].noLoad);
 
 
 // ---------- Habillage maritime (vectoriel, sans image IA) ----------
@@ -640,6 +667,25 @@ const HeroShip = () => (
 // ---------- Compte à rebours des actualités ----------
 // Le choix « avec compte à rebours » est gardé dans le texte de la date (suffixe), puis retiré à l'affichage.
 const CD_MARK = ' [compte à rebours]';
+// Médiathèque : une photo « masquée de l'accueil » porte ce marqueur à la fin de sa date (aucune colonne à ajouter dans Supabase)
+const HOME_HIDE_RE = /\s*\[hors accueil\]\s*$/;
+// Vidéos : on enregistre le lien (« video:https://... » dans la colonne image) ; le lecteur vient de YouTube, Vimeo, Facebook, Drive ou d'un fichier .mp4
+const parseVideo = (raw) => {
+  let u; try { u = new URL(String(raw || '').trim()); } catch (e) { return null; }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return null;
+  const h = u.hostname.replace(/^(www|m)\./, ''); const p = u.pathname; let id = null;
+  if (h === 'youtu.be') id = p.slice(1).split('/')[0];
+  else if (h === 'youtube.com') id = u.searchParams.get('v') || (p.match(/^\/(?:shorts|embed|live)\/([\w-]{6,})/) || [])[1];
+  if (id && /^[\w-]{6,}$/.test(id)) return { kind: 'youtube', embed: `https://www.youtube-nocookie.com/embed/${id}?rel=0`, thumb: `https://i.ytimg.com/vi/${id}/hqdefault.jpg` };
+  const vm = h === 'vimeo.com' && p.match(/^\/(\d+)/);
+  if (vm) return { kind: 'vimeo', embed: `https://player.vimeo.com/video/${vm[1]}`, thumb: '' };
+  if (h === 'facebook.com' || h === 'fb.watch') return { kind: 'facebook', embed: `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(u.href)}&show_text=false`, thumb: '' };
+  if (h === 'drive.google.com') { const d = (p.match(/\/file\/d\/([\w-]+)/) || [])[1] || u.searchParams.get('id'); if (d) return { kind: 'drive', embed: `https://drive.google.com/file/d/${d}/preview`, thumb: `https://drive.google.com/thumbnail?id=${d}&sz=w800` }; }
+  if (/\.(mp4|webm|mov|m4v)$/i.test(p)) return { kind: 'file', src: u.href, thumb: '' };
+  return null;
+};
+const ALBUM_RE = /\s*\[album\]\s*$/; // fiche d'un album (nom, date, couverture) : stockée dans la table gallery
+const normGallery = (g) => { if (!g) return g; const t = String(g.date || ''); if (ALBUM_RE.test(t)) return { ...g, date: t.replace(ALBUM_RE, ''), isAlbum: true, onHome: false, thumb: g.image }; const vid = typeof g.image === 'string' && g.image.startsWith('video:') ? g.image.slice(6) : null; const pv = vid ? parseVideo(vid) : null; const hidden = HOME_HIDE_RE.test(t); return { ...g, date: hidden ? t.replace(HOME_HIDE_RE, '') : t, onHome: !hidden, isVideo: !!vid, videoUrl: vid, video: pv, thumb: vid ? ((pv && pv.thumb) || '') : g.image }; };
 const splitCountdown = (raw) => {
   const t = String(raw || '');
   return t.endsWith(CD_MARK) ? { text: t.slice(0, -CD_MARK.length), flag: true } : { text: t, flag: false };
@@ -1482,7 +1528,14 @@ function App() {
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState([]);
   const [alumni, setAlumni] = useState([]);
-  const [gallery, setGallery] = useState(initialGallery);
+  const [galleryRaw, setGallery] = useState(initialGallery);
+  const galleryAll = useMemo(() => galleryRaw.map(normGallery), [galleryRaw]);
+  const gallery = useMemo(() => galleryAll.filter(g => g && !g.isAlbum), [galleryAll]);
+  const albumRecords = useMemo(() => galleryAll.filter(g => g && g.isAlbum), [galleryAll]);
+  const [bulk, setBulk] = useState(null); // envoi de plusieurs photos : { done, total }
+  const [bulkOnHome, setBulkOnHome] = useState(true);
+  const [albumOpen, setAlbumOpen] = useState(null); // nom de l'album ouvert dans la médiathèque
+  useEffect(() => { if (activeTab !== 'mediatheque') setAlbumOpen(null); }, [activeTab]);
   const [lightbox, setLightbox] = useState(null); // photo ouverte en grand
   const [galleryFilter, setGalleryFilter] = useState('Tout');
   const touchX = useRef(null);
@@ -1504,7 +1557,7 @@ function App() {
 
   const mapMemberRow = (row) => ({ id: row.id, matricule: row.matricule || null, name: row.name, role: row.role, department: row.department, position: row.position, bio: row.bio, image: row.image });
 
-  const RESOURCE_STATE = { news: [news, setNews], jobs: [jobs, setJobs], events: [events, setEvents], alumni: [alumni, setAlumni], registre: [registre, setRegistre], contacts: [contacts, setContacts], gallery: [gallery, setGallery] };
+  const RESOURCE_STATE = { news: [news, setNews], jobs: [jobs, setJobs], events: [events, setEvents], alumni: [alumni, setAlumni], registre: [registre, setRegistre], contacts: [contacts, setContacts], gallery: [galleryRaw, setGallery], album: [galleryRaw, setGallery], video: [galleryRaw, setGallery] };
 
   // ---------- Notifications ----------
   const showToastMsg = (msg, type = 'success') => {
@@ -2414,6 +2467,7 @@ function App() {
     const config = RESOURCE_CONFIGS[type];
     const blank = {};
     config.fields.forEach(f => { blank[f.key] = f.type === 'select' ? optValue(f.options[0]) : ''; });
+    if (type === 'gallery' || type === 'video') blank.onHome = true;
     setResourcePhotoStatus('');
     setResourceForm(blank);
     setResourceModal({ type, editingId: null });
@@ -2424,6 +2478,8 @@ function App() {
     const values = {};
     config.fields.forEach(f => { values[f.key] = item[f.key] || (f.type === 'select' ? optValue(f.options[0]) : ''); });
     if (config.fields.some(f => f.type === 'countdown')) { const sp = splitCountdown(item.date); values.date = sp.text; values.countdown = sp.flag; }
+    if (type === 'gallery' || type === 'video') values.onHome = item.onHome !== false;
+    if (type === 'video') values.image = item.videoUrl || '';
     setResourcePhotoStatus('');
     setResourceForm(values);
     setResourceModal({ type, editingId: item.id });
@@ -2451,6 +2507,27 @@ function App() {
     }
   };
 
+  const handleBulkUpload = async (albumName, allFiles, onHome) => {
+    if (!canEdit('gallery') || !allFiles.length || bulk) return;
+    const files = allFiles.slice(0, 20);
+    if (allFiles.length > 20) showToastMsg('20 photos maximum à la fois : les 20 premières sont envoyées.', 'error');
+    setBulk({ done: 0, total: files.length });
+    let ok = 0;
+    for (let i = 0; i < files.length; i++) {
+      try {
+        const dataUrl = await compressImage(files[i], 1400, 0.8);
+        const row = await authRpc('cge_save', { p_table: 'gallery', p_id: null, p_data: { title: albumName, category: albumName, date: onHome ? '' : '[hors accueil]', caption: '', image: dataUrl }, p_details: albumName });
+        setGallery(prev => [...prev, row]);
+        ok++;
+      } catch (err) {
+        showToastMsg(`« ${files[i].name} » : ` + (err && err.code ? explainDbError(err) : photoErrorMessage(files[i], err)), 'error');
+      }
+      setBulk({ done: i + 1, total: files.length });
+    }
+    setBulk(null);
+    if (ok) { showToastMsg(`${ok} photo${ok > 1 ? 's ajoutées' : ' ajoutée'} à l'album.`, 'success'); afterStaffWrite(); }
+  };
+
   const handleSaveResource = async () => {
     if (isSavingResource) return;
     const { type, editingId } = resourceModal;
@@ -2472,6 +2549,16 @@ function App() {
       payload.date = payload.date + (payload.countdown && pd && pd.date.getTime() > Date.now() ? CD_MARK : '');
     }
     delete payload.countdown;
+    if (type === 'gallery' || type === 'video') { payload.date = ((payload.date || '') + (resourceForm.onHome === false ? ' [hors accueil]' : '')).trim(); }
+    delete payload.onHome;
+    if (type === 'album') {
+      if (editingId !== null) { const cur = items.find(i => i.id === editingId); if (cur) { payload.title = cur.title; payload.category = cur.category; } }
+      else {
+        if (galleryAll.some(g => String(g.category || '').toLowerCase() === String(payload.title).toLowerCase())) { showToastMsg('Un album porte déjà ce nom.', 'error'); return; }
+        payload.category = payload.title;
+      }
+      payload.date = (payload.date || '') + ' [album]';
+    }
     for (const f of config.fields) {
       if (f.type === 'url' && payload[f.key]) {
         const clean = normalizeUrl(payload[f.key]);
@@ -2485,6 +2572,10 @@ function App() {
       }
     }
 
+    if (type === 'video') {
+      if (!parseVideo(payload.image)) { showToastMsg("Ce lien vidéo n'est pas reconnu. Utilisez un lien YouTube, Facebook, Vimeo, Google Drive ou un fichier .mp4.", 'error'); return; }
+      payload.image = 'video:' + payload.image;
+    }
     const isEditing = editingId !== null;
     const before = isEditing ? items.find(i => i.id === editingId) : null;
     const details = isEditing
@@ -3015,7 +3106,10 @@ function App() {
             </div>
           );
           const placeholder = field.type === 'url' ? 'https://' : field.type === 'apply' ? 'https://... ou recrutement@entreprise.com' : undefined;
-          return <input id={id} type={field.type === 'url' ? 'url' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined} placeholder={placeholder} value={value} onChange={e => setField(field.key, e.target.value)} className={inputClass} />;
+          return <>
+            <input id={id} type={field.type === 'url' ? 'url' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined} placeholder={placeholder} value={value} onChange={e => setField(field.key, e.target.value)} disabled={resourceModal.type === 'album' && resourceModal.editingId !== null && field.key === 'title'} list={['gallery', 'video'].includes(resourceModal.type) && field.key === 'category' ? 'gallery-albums' : undefined} className={inputClass} />
+            {['gallery', 'video'].includes(resourceModal.type) && field.key === 'category' && <datalist id="gallery-albums">{Array.from(new Set(galleryAll.map(g => g.category).filter(Boolean))).map(n => <option key={n} value={n} />)}</datalist>}
+          </>;
         };
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4" onClick={closeResourceModal}>
@@ -3023,6 +3117,12 @@ function App() {
               <button onClick={closeResourceModal} aria-label="Fermer" className="absolute top-5 right-5 text-stone-400 hover:text-stone-700"><X className="w-5 h-5" /></button>
               <div><h3 id="resource-title" className="font-serif text-xl font-bold">{resourceModal.editingId !== null ? `Modifier : ${config.titleSingular}` : config.addLabel}</h3><p className="text-xs text-stone-500 mt-1">Les champs marqués d'un * sont obligatoires.</p></div>
               <div className="space-y-3">{config.fields.map(field => {
+                if (field.type === 'homeflag') return (
+                  <label key={field.key} htmlFor="field-onhome" className="flex items-start gap-3 rounded-2xl bg-orange-500/10 border border-orange-500/20 p-4 cursor-pointer">
+                    <input id="field-onhome" type="checkbox" checked={resourceForm.onHome !== false} onChange={e => setField('onHome', e.target.checked)} className="mt-1 w-4 h-4 accent-orange-600" />
+                    <span className="text-sm text-stone-700"><strong className="text-stone-900">Afficher aussi sur l'écran d'accueil ?</strong><br />Décochez pour que la photo reste uniquement dans son album de la médiathèque.</span>
+                  </label>
+                );
                 if (field.type === 'countdown') {
                   const pd = parseFrenchDate(resourceForm.date);
                   if (!pd || pd.date.getTime() <= Date.now()) return null;
@@ -3185,7 +3285,7 @@ function App() {
 
             {/* EN IMAGES : dernières photos de la médiathèque */}
             {(() => {
-              const homePhotos = gallery.filter(g => g && g.image && !g.placeholder).slice(-6).reverse();
+              const homePhotos = gallery.filter(g => g && g.image && !g.placeholder && g.onHome).slice(-6).reverse();
               if (homePhotos.length === 0 && !canEdit('gallery')) return null;
               return (
                 <section aria-label="Photos des événements" className="space-y-6">
@@ -3210,7 +3310,7 @@ function App() {
                   )}
                   {homePhotos.length > 0 && (
                     <div className="text-center">
-                      <button type="button" onClick={() => { setActiveTab('mediatheque'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="relative z-10 inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:underline px-4 py-2 rounded-full bg-white/85 backdrop-blur shadow-sm">Voir toute la médiathèque <ChevronDown className="w-4 h-4 -rotate-90" /></button>
+                      <button type="button" onClick={() => { setAlbumOpen(null); setActiveTab('mediatheque'); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="relative z-10 inline-flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:underline px-4 py-2 rounded-full bg-white/85 backdrop-blur shadow-sm">Voir tous les albums <ChevronDown className="w-4 h-4 -rotate-90" /></button>
                     </div>
                   )}
                 </section>
@@ -4128,49 +4228,111 @@ function App() {
           )
         )}
 
-        {/* MEDIATHEQUE VIEW */}
-        {activeTab === 'mediatheque' && (
-          <div className="space-y-8">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <h2 className="font-serif text-3xl font-bold text-stone-900">Médiathèque Officielle</h2>
-              {canEdit('gallery') && (
-                <button onClick={() => openAddResource('gallery')} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
-                  <Plus className="w-4 h-4" /> Ajouter un média
-                </button>
+        {/* MEDIATHEQUE VIEW : albums */}
+        {activeTab === 'mediatheque' && (() => {
+          const catName = (g) => g.category || 'Divers';
+          const names = Array.from(new Set([...albumRecords.map(catName), ...gallery.map(catName)]));
+          const albums = names.map(name => {
+            const rec = albumRecords.find(a => catName(a) === name) || null;
+            const photos = gallery.filter(g => catName(g) === name && g.image).reverse();
+            const dateText = (rec && rec.date) || (photos[0] && photos[0].date) || '';
+            const pd = parseFrenchDate(dateText);
+            const ids = [rec ? rec.id : 0, ...photos.map(p => p.id)].map(Number).filter(Number.isFinite);
+            return { name, rec, photos, dateText, t: pd ? pd.date.getTime() : 0, lastId: Math.max(0, ...ids), cover: (rec && rec.thumb) || ((photos.find(p => p.thumb) || {}).thumb) || '' };
+          }).sort((a, b) => (b.t - a.t) || (b.lastId - a.lastId));
+          const open = albumOpen ? albums.find(a => a.name === albumOpen) : null;
+          const plural = (n) => `${n} photo${n > 1 ? 's' : ''}`;
+          const counts = (a) => { const v = a.photos.filter(p => p.isVideo).length; const n = a.photos.length - v; return [n ? plural(n) : '', v ? `${v} vidéo${v > 1 ? 's' : ''}` : ''].filter(Boolean).join(' · ') || '0 photo'; };
+          const isNew = (a) => a.t > 0 && Date.now() - a.t < 45 * 864e5 && a.t < Date.now() + 864e5;
+          return (
+            <div className="space-y-8">
+              <div className="flex flex-wrap items-end justify-between gap-4">
+                <div className="space-y-1 min-w-0">
+                  {open && (
+                    <button type="button" onClick={() => setAlbumOpen(null)} className="inline-flex items-center gap-1.5 text-xs font-semibold text-stone-600 hover:text-orange-600">
+                      <ChevronDown className="w-4 h-4 rotate-90" /> Tous les albums
+                    </button>
+                  )}
+                  <h2 className="font-serif text-3xl font-bold text-stone-900">{open ? open.name : 'Médiathèque Officielle'}</h2>
+                  <p className="text-stone-500">{open ? [open.dateText, counts(open)].filter(Boolean).join(' · ') : `Les albums photos de la CGE ARSTM — ${albums.length} album${albums.length > 1 ? 's' : ''}`}</p>
+                  {open && open.rec && open.rec.caption && <p className="text-sm text-stone-600 max-w-2xl">{open.rec.caption}</p>}
+                </div>
+                {canEdit('gallery') && !open && (
+                  <button onClick={() => openAddResource('album')} className="hover-scale flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30">
+                    <Plus className="w-4 h-4" /> Créer un album
+                  </button>
+                )}
+              </div>
+
+              {albums.length === 0 && (
+                <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Aucun album pour le moment.</div>
               )}
-            </div>
-            {(() => {
-              const cats = ['Tout', ...Array.from(new Set(gallery.map(g => g && g.category).filter(Boolean)))];
-              const shown = [...gallery].filter(g => g && (galleryFilter === 'Tout' || g.category === galleryFilter)).reverse();
-              return (
+
+              {/* Liste des albums */}
+              {!open && albums.length > 0 && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
+                  {albums.map(al => (
+                    <button key={al.name} type="button" onClick={() => { setAlbumOpen(al.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }} aria-label={`Ouvrir l'album ${al.name} (${counts(al)})`} className="glass-card hover-scale group block text-left rounded-[2rem] overflow-hidden">
+                      <span className="relative block aspect-[4/3] bg-stone-200 overflow-hidden">
+                        {al.cover && <FadeImg src={al.cover} alt="" className="w-full h-full object-cover group-hover:scale-105" />}
+                        {isNew(al) && <span className="absolute top-4 left-4 bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">Nouveau</span>}
+                        <span className="absolute bottom-4 right-4 inline-flex items-center gap-1.5 bg-stone-900/70 backdrop-blur text-white text-sm font-semibold px-3 py-1.5 rounded-xl"><ImgIcon className="w-4 h-4" /> {al.photos.length}</span>
+                      </span>
+                      <span className="block p-5 sm:p-6">
+                        <span className="block font-serif text-xl font-bold text-stone-900 leading-tight group-hover:text-orange-600 transition-colors">{al.name}</span>
+                        {al.dateText && <span className="block text-sm text-stone-500 mt-1.5">{al.dateText}</span>}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Album ouvert */}
+              {open && (
                 <>
-                  <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrer par catégorie">
-                    {cats.map(c => {
-                      const n = c === 'Tout' ? gallery.length : gallery.filter(g => g && g.category === c).length;
-                      const on = galleryFilter === c;
-                      return <button key={c} type="button" aria-pressed={on} onClick={() => setGalleryFilter(c)} className={`px-4 py-2 rounded-full text-xs font-semibold transition ${on ? 'bg-orange-600 text-white shadow-lg shadow-orange-600/30' : 'glass-card text-stone-700 hover:text-orange-600'}`}>{c} <span className="opacity-70">({n})</span></button>;
-                    })}
-                  </div>
+                  {canEdit('gallery') && (
+                    <div className="glass-card rounded-3xl p-4 sm:p-5 flex flex-wrap items-center gap-x-5 gap-y-3">
+                      <label htmlFor="bulk-photos" className={`hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30 cursor-pointer ${bulk ? 'opacity-60 pointer-events-none' : ''}`}>
+                        <Plus className="w-4 h-4" /> {bulk ? `Envoi ${bulk.done}/${bulk.total}…` : 'Ajouter des photos'}
+                      </label>
+                      <input id="bulk-photos" type="file" accept="image/*" multiple disabled={!!bulk} className="sr-only"
+                        onChange={e => { const files = Array.from(e.target.files || []); e.target.value = ''; handleBulkUpload(open.name, files, bulkOnHome); }} />
+                      <button type="button" onClick={() => { openAddResource('video'); setResourceForm(f => ({ ...f, category: open.name })); }} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-white/80 border border-orange-500/40 text-orange-700 text-xs font-semibold"><Plus className="w-4 h-4" /> Ajouter une vidéo</button>
+                      <label className="inline-flex items-center gap-2 text-xs text-stone-700 cursor-pointer">
+                        <input type="checkbox" checked={bulkOnHome} onChange={e => setBulkOnHome(e.target.checked)} className="w-4 h-4 accent-orange-600" /> Afficher aussi sur l'accueil
+                      </label>
+                      {open.rec && (
+                        <span className="flex gap-2 ml-auto">
+                          <button type="button" onClick={() => openEditResource('album', open.rec)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600"><Pencil className="w-3.5 h-3.5" /> Modifier l'album</button>
+                          <button type="button" onClick={() => open.photos.length ? showToastMsg("Retirez d'abord les photos de l'album pour pouvoir le supprimer.", 'error') : setResourceToDelete({ type: 'album', item: open.rec })} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-3.5 h-3.5" /> Supprimer</button>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {open.photos.length === 0 && <div className="glass-card p-8 rounded-3xl text-center text-sm text-stone-500">Cet album est vide pour le moment.</div>}
                   <div className="columns-2 md:columns-3 gap-4">
-                    {shown.map(item => (
+                    {open.photos.map(item => (
                       <div key={item.id} className="glass-card rounded-3xl overflow-hidden hover-scale group relative break-inside-avoid mb-4">
-                        {canEdit('gallery') && <div className="absolute top-3 right-3 z-10 flex gap-2"><button onClick={() => openEditResource('gallery', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'gallery',item})} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
-                        <button type="button" onClick={() => setLightbox(item)} aria-label={`Agrandir : ${item.title}`} className="block w-full bg-stone-200 min-h-[8rem] overflow-hidden">
-                          <FadeImg src={item.image} alt={item.title} className="w-full h-auto block group-hover:scale-105" />
+                        {canEdit('gallery') && <div className="absolute top-3 right-3 z-10 flex gap-2"><button onClick={() => openEditResource(item.isVideo ? 'video' : 'gallery', item)} aria-label={`Modifier ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-orange-600 hover:bg-orange-600 hover:text-white"><Pencil className="w-4 h-4" /></button><button onClick={() => setResourceToDelete({type:'gallery',item})} aria-label={`Supprimer ${item.title}`} className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-4 h-4" /></button></div>}
+                        {canEdit('gallery') && item.onHome && !item.placeholder && <span className="absolute top-3 left-3 z-10 text-[9px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full bg-orange-600 text-white shadow">Sur l'accueil</span>}
+                        <button type="button" onClick={() => setLightbox(item)} aria-label={`Agrandir : ${item.title}`} className="relative block w-full bg-stone-200 min-h-[8rem] overflow-hidden">
+                          <MediaThumb item={item} className="w-full h-auto block group-hover:scale-105" />{item.isVideo && <PlayBadge />}
                         </button>
-                        <div className="p-4 sm:p-5">
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-orange-600">{item.category}{item.date ? ` · ${item.date}` : ''}</span>
-                          <h4 className="font-serif font-bold text-stone-900">{item.title}</h4>
-                          {item.caption && <p className="text-xs text-stone-600 mt-1">{item.caption}</p>}
-                        </div>
+                        {(item.title !== open.name || item.caption || item.date) && (
+                          <div className="p-4 sm:p-5">
+                            {item.date && <span className="text-[10px] font-bold uppercase tracking-wide text-orange-600">{item.date}</span>}
+                            {item.title !== open.name && <h4 className="font-serif font-bold text-stone-900">{item.title}</h4>}
+                            {item.caption && <p className="text-xs text-stone-600 mt-1">{item.caption}</p>}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
                 </>
-              );
-            })()}
-          </div>
-        )}
+              )}
+            </div>
+          );
+        })()}
 
         {lightbox && (() => {
           const list = gallery.filter(g => g && g.image);
@@ -4187,7 +4349,11 @@ function App() {
                 <button type="button" onClick={e => { e.stopPropagation(); go(1); }} aria-label="Photo suivante" className="absolute right-2 sm:right-5 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full bg-white/90 flex items-center justify-center text-stone-800 z-10"><ChevronDown className="w-5 h-5 -rotate-90" /></button>
               </>}
               <figure onClick={e => e.stopPropagation()} className="max-w-4xl w-full space-y-3">
-                <img src={lightbox.image} alt={lightbox.title} className="w-full max-h-[75vh] object-contain rounded-2xl" />
+                {lightbox.isVideo && lightbox.video
+                  ? (lightbox.video.kind === 'file'
+                    ? <video key={lightbox.id} src={lightbox.video.src} controls playsInline preload="metadata" className="w-full max-h-[75vh] rounded-2xl bg-black" />
+                    : <div className="relative w-full aspect-video rounded-2xl overflow-hidden bg-black"><iframe key={lightbox.id} src={lightbox.video.embed} title={lightbox.title} allow="autoplay; encrypted-media; fullscreen; picture-in-picture" allowFullScreen referrerPolicy="strict-origin-when-cross-origin" className="absolute inset-0 w-full h-full border-0" /></div>)
+                  : <img src={lightbox.image} alt={lightbox.title} className="w-full max-h-[75vh] object-contain rounded-2xl" />}
                 <figcaption className="text-center text-white">
                   <span className="block text-[11px] font-bold uppercase tracking-wide text-orange-300">{lightbox.category}{lightbox.date ? ` · ${lightbox.date}` : ''}{list.length > 1 && idx >= 0 ? ` · ${idx + 1} / ${list.length}` : ''}</span>
                   <span className="block font-serif text-lg font-bold">{lightbox.title}</span>
