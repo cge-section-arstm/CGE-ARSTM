@@ -2682,7 +2682,7 @@ function App() {
     if (type === 'album') {
       if (editingId !== null) { const cur = items.find(i => i.id === editingId); if (cur) { payload.title = cur.title; payload.category = cur.category; } }
       else {
-        if (galleryAll.some(g => String(g.category || '').toLowerCase() === String(payload.title).toLowerCase())) { showToastMsg('Un album porte déjà ce nom.', 'error'); return; }
+        if (!resourceModal.virtual && galleryAll.some(g => String(g.category || '').toLowerCase() === String(payload.title).toLowerCase())) { showToastMsg('Un album porte déjà ce nom.', 'error'); return; }
         payload.category = payload.title;
       }
       payload.date = (payload.date || '') + ' [album]';
@@ -3235,7 +3235,7 @@ function App() {
           );
           const placeholder = field.type === 'url' ? 'https://' : field.type === 'apply' ? 'https://... ou recrutement@entreprise.com' : undefined;
           return <>
-            <input id={id} type={field.type === 'url' ? 'url' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined} placeholder={placeholder} value={value} onChange={e => setField(field.key, e.target.value)} disabled={resourceModal.type === 'album' && resourceModal.editingId !== null && field.key === 'title'} list={['gallery', 'video'].includes(resourceModal.type) && field.key === 'category' ? 'gallery-albums' : undefined} className={inputClass} />
+            <input id={id} type={field.type === 'url' ? 'url' : 'text'} inputMode={field.type === 'url' ? 'url' : undefined} placeholder={placeholder} value={value} onChange={e => setField(field.key, e.target.value)} disabled={resourceModal.type === 'album' && (resourceModal.editingId !== null || resourceModal.virtual) && field.key === 'title'} list={['gallery', 'video'].includes(resourceModal.type) && field.key === 'category' ? 'gallery-albums' : undefined} className={inputClass} />
             {['gallery', 'video'].includes(resourceModal.type) && field.key === 'category' && <datalist id="gallery-albums">{Array.from(new Set(galleryAll.map(g => g.category).filter(Boolean))).map(n => <option key={n} value={n} />)}</datalist>}
           </>;
         };
@@ -4363,7 +4363,7 @@ function App() {
           const albums = names.map(name => {
             const rec = albumRecords.find(a => catName(a) === name) || null;
             const photos = gallery.filter(g => catName(g) === name && g.image).reverse();
-            const dateText = (rec && rec.date) || (photos[0] && photos[0].date) || '';
+            const dateText = (rec && rec.date) || ((photos.find(p => p.date && String(p.date).trim()) || {}).date) || '';
             const pd = parseFrenchDate(dateText);
             const ids = [rec ? rec.id : 0, ...photos.map(p => p.id)].map(Number).filter(Number.isFinite);
             return { name, rec, photos, dateText, t: pd ? pd.date.getTime() : 0, lastId: Math.max(0, ...ids), cover: (rec && rec.thumb) || ((photos.find(p => p.thumb) || {}).thumb) || '' };
@@ -4376,6 +4376,13 @@ function App() {
           const albumMixed = homeShown > 0 && homeShown < homeTotal;
           const albumChecked = homeTotal === 0 ? bulkOnHome : homeShown === homeTotal;
           const newUploadsOnHome = homeTotal === 0 ? bulkOnHome : homeShown > 0;
+          const editAlbum = (a) => {
+            if (a.rec) { openEditResource('album', a.rec); return; }
+            // Album sans fiche (créé en ajoutant des photos) : on crée sa fiche au premier enregistrement
+            setResourcePhotoStatus('');
+            setResourceForm({ title: a.name, date: a.dateText || '', caption: '', image: a.cover || '' });
+            setResourceModal({ type: 'album', editingId: null, virtual: true });
+          };
           const isNew = (a) => a.t > 0 && Date.now() - a.t < 45 * 864e5 && a.t < Date.now() + 864e5;
           return (
             <div className="space-y-8">
@@ -4405,7 +4412,9 @@ function App() {
               {!open && albums.length > 0 && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">
                   {albums.map(al => (
-                    <button key={al.name} type="button" onClick={() => { setAlbumOpen(al.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }} aria-label={`Ouvrir l'album ${al.name} (${counts(al)})`} className="glass-card hover-scale group block text-left rounded-[2rem] overflow-hidden">
+                    <div key={al.name} className="relative h-full">
+                    {canEdit('gallery') && <button type="button" onClick={() => editAlbum(al)} aria-label={`Modifier l'album ${al.name}`} className="absolute top-4 right-4 z-10 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/95 text-orange-600 text-xs font-semibold shadow hover:bg-orange-600 hover:text-white"><Pencil className="w-3.5 h-3.5" /> Modifier</button>}
+                    <button type="button" onClick={() => { setAlbumOpen(al.name); window.scrollTo({ top: 0, behavior: 'smooth' }); }} aria-label={`Ouvrir l'album ${al.name} (${counts(al)})`} className="glass-card hover-scale group block w-full h-full text-left rounded-[2rem] overflow-hidden">
                       <span className="relative block aspect-[4/3] bg-stone-200 overflow-hidden">
                         {al.cover && <FadeImg src={al.cover} alt="" className="w-full h-full object-cover group-hover:scale-105" />}
                         {isNew(al) && <span className="absolute top-4 left-4 bg-orange-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-lg">Nouveau</span>}
@@ -4413,9 +4422,10 @@ function App() {
                       </span>
                       <span className="block p-5 sm:p-6">
                         <span className="block font-serif text-xl font-bold text-stone-900 leading-tight group-hover:text-orange-600 transition-colors">{al.name}</span>
-                        {al.dateText && <span className="block text-sm text-stone-500 mt-1.5">{al.dateText}</span>}
+                        {al.dateText ? <span className="block text-sm text-stone-500 mt-1.5">{al.dateText}</span> : (canEdit('gallery') && <span className="block text-sm text-stone-400 italic mt-1.5">Date non renseignée</span>)}
                       </span>
                     </button>
+                    </div>
                   ))}
                 </div>
               )}
@@ -4435,10 +4445,10 @@ function App() {
                         <input type="checkbox" disabled={homeBusy} checked={albumChecked} ref={el => { if (el) el.indeterminate = albumMixed; }} onChange={e => setAlbumHome(open.name, e.target.checked)} className="w-4 h-4 accent-orange-600" />
                         <span>{homeBusy ? 'Mise à jour…' : "Afficher cet album sur l'accueil"}<span className="block text-[10px] text-stone-500">{albumMixed ? 'Certaines photos seulement : cocher les affiche toutes.' : 'Concerne toutes les photos et vidéos de l\'album.'}</span></span>
                       </label>
-                      {open.rec && (
+                      {(
                         <span className="flex gap-2 ml-auto">
-                          <button type="button" onClick={() => openEditResource('album', open.rec)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600"><Pencil className="w-3.5 h-3.5" /> Modifier l'album</button>
-                          <button type="button" onClick={() => open.photos.length ? showToastMsg("Retirez d'abord les photos de l'album pour pouvoir le supprimer.", 'error') : setResourceToDelete({ type: 'album', item: open.rec })} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-3.5 h-3.5" /> Supprimer</button>
+                          <button type="button" onClick={() => editAlbum(open)} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-stone-700 hover:text-orange-600"><Pencil className="w-3.5 h-3.5" /> Modifier l'album</button>
+                          {open.rec && <button type="button" onClick={() => open.photos.length ? showToastMsg("Retirez d'abord les photos de l'album pour pouvoir le supprimer.", 'error') : setResourceToDelete({ type: 'album', item: open.rec })} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-white/80 border border-stone-200 text-xs font-semibold text-rose-600 hover:bg-rose-600 hover:text-white"><Trash className="w-3.5 h-3.5" /> Supprimer</button>}
                         </span>
                       )}
                     </div>
