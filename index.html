@@ -1697,7 +1697,9 @@ function App() {
   const [news, setNews] = useState(initialNews);
   const [jobs, setJobs] = useState([]);
   const [alumni, setAlumni] = useState([]);
-  const [galleryRaw, setGallery] = useState(initialGallery);
+  const [galleryRaw, setGallery] = useState([]);
+  const [galleryReady, setGalleryReady] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setGalleryReady(true), 8000); return () => clearTimeout(t); }, []);
   const galleryAll = useMemo(() => galleryRaw.map(normGallery), [galleryRaw]);
   const albumRecords = useMemo(() => galleryAll.filter(g => g && g.isAlbum), [galleryAll]);
   const gallery = useMemo(() => { const m = {}; albumRecords.forEach(a => { if (a.albumHome !== null) m[a.category || 'Divers'] = a.albumHome; }); return galleryAll.filter(g => g && !g.isAlbum).map(g => { const k = g.category || 'Divers'; return k in m ? { ...g, onHome: m[k] } : g; }); }, [galleryAll, albumRecords]);
@@ -1815,6 +1817,7 @@ function App() {
         console.error('Synchronisation Supabase :', e);
       } finally {
         setIsSyncing(false);
+        setGalleryReady(true);
       }
     })();
     // Reprise de la session après un rechargement de la page
@@ -3514,14 +3517,16 @@ function App() {
               const homeSrc = gallery.filter(g => g && g.image && !g.placeholder && g.onHome).reverse();
               const homeGroups = []; homeSrc.forEach(g => { const k = g.category || 'Divers'; let grp = homeGroups.find(x => x.k === k); if (!grp) { grp = { k, l: [] }; homeGroups.push(grp); } grp.l.push(g); });
               const homePhotos = []; for (let r = 0; r < 4; r++) homeGroups.forEach(grp => { if (grp.l[r]) homePhotos.push(grp.l[r]); });
-              if (homePhotos.length === 0 && !canEdit('gallery')) return null;
+              if (galleryReady && homePhotos.length === 0 && !canEdit('gallery')) return null;
               return (
                 <section aria-label="Photos des événements" className="space-y-6">
                   <div className="text-center space-y-2">
                     <p className="text-[11px] font-bold uppercase tracking-widest text-orange-600">En images</p>
                     <h3 className="font-serif text-2xl sm:text-3xl font-bold text-stone-900">La vie de la CGE en photos</h3>
                   </div>
-                  {homePhotos.length === 0 ? (
+                  {!galleryReady && homePhotos.length === 0 ? (
+                    <div role="status" aria-label="Chargement des photos" className="animate-pulse rounded-3xl bg-stone-200/80 w-full aspect-[4/3] sm:aspect-[16/9]" />
+                  ) : homePhotos.length === 0 ? (
                     <div className="rounded-3xl border border-dashed border-orange-500/40 bg-orange-500/5 p-6 text-center space-y-3">
                       <p className="text-sm text-stone-700">Aucune photo pour le moment. Ajoutez celles de vos événements : elles apparaîtront ici pour tous les visiteurs.</p>
                       <button type="button" onClick={() => openAddResource('gallery')} className="hover-scale inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-orange-600 text-white text-xs font-semibold shadow-lg shadow-orange-600/30"><Plus className="w-4 h-4" /> Ajouter une photo</button>
@@ -4494,6 +4499,12 @@ function App() {
                 </span>
                 {!hero && <span className="block p-5 sm:p-6"><span className="block font-serif text-xl font-bold text-stone-900 leading-tight group-hover:text-orange-600 transition-colors">{al.name}</span><span className="block text-sm text-stone-500 mt-1.5">{al.dateText || (staff ? 'Date non renseignée' : '')}{al.dateText ? ' · ' : ''}{meta(al)}</span></span>}
               </button>
+            </div>
+          );
+          if (!galleryReady && galleryRaw.length === 0) return (
+            <div className="space-y-8" role="status" aria-label="Chargement des albums">
+              <div className="space-y-2 animate-pulse"><div className="h-3 w-24 rounded bg-stone-200" /><div className="h-8 w-72 max-w-full rounded bg-stone-200" /></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 sm:gap-8">{[0, 1, 2].map(n => <div key={n} className="animate-pulse rounded-[2rem] bg-white/60 overflow-hidden"><div className="aspect-[4/3] bg-stone-200" /><div className="p-5 space-y-2"><div className="h-5 w-3/4 rounded bg-stone-200" /><div className="h-3 w-1/2 rounded bg-stone-200" /></div></div>)}</div>
             </div>
           );
           return (
